@@ -1147,7 +1147,9 @@ function generateCertificatePDF(data) {
 
     // Convert to PDF
     const pdfBlob = tempSheet.getParent().getAs('application/pdf');
-    pdfBlob.setName('COC_Certificate_' + data.employee.employeeId + '_' + Date.now() + '.pdf');
+    // Use employee name in format: "LastName, FirstName"
+    const pdfFileName = `COC_Certificate_${data.employee.lastName}, ${data.employee.firstName}.pdf`;
+    pdfBlob.setName(pdfFileName);
 
     // Save to Drive with year/month organization
     const CERTIFICATES_FOLDER_ID = '1QltJeBLauIIjITAE8UUTNKwWb3u4r4Nr';
