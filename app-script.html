@@ -1683,12 +1683,15 @@
 
       const toggleEntryLoading = (isLoading) => {
         if (!loadingContainer || !tableWrapper) return;
+        const addDayBtn = document.getElementById('ot-add-day-btn');
         if (isLoading) {
           loadingContainer.classList.add('active');
           tableWrapper.classList.add('d-none');
+          if (addDayBtn) addDayBtn.disabled = true;
         } else {
           loadingContainer.classList.remove('active');
           tableWrapper.classList.remove('d-none');
+          if (addDayBtn) addDayBtn.disabled = false;
         }
       };
 
