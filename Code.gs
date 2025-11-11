@@ -404,22 +404,9 @@ function logOvertimeBatch_SERVER(data) {
       };
     }
 
-    // Check for duplicate dates (server-side)
+    // Check for duplicate dates within the submission
     const dateSet = new Set();
-
-    // Get all existing overtime logs for this employee
-    const allLogsQuery = db.getDocuments('overtimeLogs');
-    const employeeLogs = [];
-
-    for (let i = 0; i < allLogsQuery.length; i++) {
-      const log = allLogsQuery[i].obj;
-      if (log.employeeId === data.employeeId) {
-        employeeLogs.push(log);
-      }
-    }
-
     for (const entry of data.entries) {
-      // Check for duplicates within the submission
       if (dateSet.has(entry.date)) {
         return {
           success: false,
@@ -427,18 +414,25 @@ function logOvertimeBatch_SERVER(data) {
         };
       }
       dateSet.add(entry.date);
+    }
 
-      // Check if date already exists in database for this employee
-      const entryDateISO = new Date(entry.date).toISOString();
-      for (let i = 0; i < employeeLogs.length; i++) {
-        if (employeeLogs[i].overtimeDate === entryDateISO) {
-          return {
-            success: false,
-            error: `Overtime already logged for ${entry.date}`
-          };
-        }
+    // Delete all existing uncertified logs for this employee + month + year
+    // This allows users to edit existing uncertified logs
+    const allLogsQuery = db.getDocuments('overtimeLogs');
+    let deletedCount = 0;
+
+    for (let i = 0; i < allLogsQuery.length; i++) {
+      const log = allLogsQuery[i].obj;
+      if (log.employeeId === data.employeeId &&
+          log.month === data.month &&
+          log.year === data.year &&
+          log.status === 'Uncertified') {
+        db.deleteDocument('overtimeLogs/' + log.logId);
+        deletedCount++;
       }
     }
+
+    Logger.log(`Deleted ${deletedCount} existing uncertified logs for month ${data.month}/${data.year}`);
 
     // Create overtime logs
     let createdCount = 0;
