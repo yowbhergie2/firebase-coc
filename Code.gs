@@ -648,6 +648,420 @@ function generateCertificate_SERVER(data) {
   }
 }
 
+// ========== GENERATE CERTIFICATE FEATURE SERVER FUNCTIONS ==========
+
+// Get uncertified overtime logs grouped by month/year for an employee
+function getUncertifiedMonthsByEmployee_SERVER(employeeId) {
+  try {
+    const db = getFirestore();
+    const allLogsQuery = db.getDocuments('overtimeLogs');
+
+    // Group by month/year
+    const monthsMap = {};
+
+    for (let i = 0; i < allLogsQuery.length; i++) {
+      const log = allLogsQuery[i].obj;
+      if (log && log.employeeId === employeeId && log.status === 'Uncertified') {
+        const key = `${log.month}-${log.year}`;
+        if (!monthsMap[key]) {
+          monthsMap[key] = {
+            month: log.month,
+            year: log.year,
+            entries: [],
+            totalHours: 0
+          };
+        }
+        monthsMap[key].entries.push(log);
+        monthsMap[key].totalHours += Number(log.earnedHours || 0);
+      }
+    }
+
+    // Convert to array and sort by year/month descending
+    const months = Object.values(monthsMap).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+
+    return {
+      success: true,
+      months: months
+    };
+
+  } catch (error) {
+    Logger.log('Error getting uncertified months: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString(),
+      months: []
+    };
+  }
+}
+
+// Get all employees with uncertified logs for a specific month/year
+function getEmployeesByMonthWithUncertified_SERVER(month, year) {
+  try {
+    const db = getFirestore();
+    const allLogsQuery = db.getDocuments('overtimeLogs');
+    const employeesQuery = db.getDocuments('employees');
+
+    // Build employee map
+    const employeeMap = {};
+    for (let i = 0; i < employeesQuery.length; i++) {
+      const emp = employeesQuery[i].obj;
+      if (emp) {
+        employeeMap[emp.employeeId] = emp;
+      }
+    }
+
+    // Group uncertified logs by employee for this month/year
+    const employeeLogsMap = {};
+
+    for (let i = 0; i < allLogsQuery.length; i++) {
+      const log = allLogsQuery[i].obj;
+      if (log && log.status === 'Uncertified' && log.month === month && log.year === year) {
+        if (!employeeLogsMap[log.employeeId]) {
+          employeeLogsMap[log.employeeId] = {
+            employeeId: log.employeeId,
+            entries: [],
+            totalHours: 0
+          };
+        }
+        employeeLogsMap[log.employeeId].entries.push(log);
+        employeeLogsMap[log.employeeId].totalHours += Number(log.earnedHours || 0);
+      }
+    }
+
+    // Convert to array with employee details
+    const employees = [];
+    for (const empId in employeeLogsMap) {
+      const employee = employeeMap[empId];
+      if (employee) {
+        employees.push({
+          employeeId: empId,
+          fullName: `${employee.firstName} ${employee.lastName}`,
+          office: employee.office || 'N/A',
+          totalHours: employeeLogsMap[empId].totalHours,
+          entriesCount: employeeLogsMap[empId].entries.length
+        });
+      }
+    }
+
+    // Sort by name
+    employees.sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+    return {
+      success: true,
+      employees: employees
+    };
+
+  } catch (error) {
+    Logger.log('Error getting employees by month: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString(),
+      employees: []
+    };
+  }
+}
+
+// Generate COC Certificate with PDF for a specific month/year
+function generateCOCCertificate_SERVER(data) {
+  try {
+    const db = getFirestore();
+
+    // Validate required data
+    if (!data.employeeId || data.month === undefined || !data.year || !data.dateOfIssuance) {
+      return {
+        success: false,
+        error: 'Missing required data'
+      };
+    }
+
+    // Get employee data
+    const employeeDoc = db.getDocument('employees/' + data.employeeId);
+    if (!employeeDoc || !employeeDoc.obj) {
+      return {
+        success: false,
+        error: 'Employee not found'
+      };
+    }
+    const employee = employeeDoc.obj;
+
+    // Get all uncertified logs for this employee/month/year
+    const allLogsQuery = db.getDocuments('overtimeLogs');
+    const logs = [];
+    let totalEarnedHours = 0;
+
+    for (let i = 0; i < allLogsQuery.length; i++) {
+      const log = allLogsQuery[i].obj;
+      if (log && log.employeeId === data.employeeId &&
+          log.month === data.month && log.year === data.year &&
+          log.status === 'Uncertified') {
+        logs.push(log);
+        totalEarnedHours += Number(log.earnedHours || 0);
+      }
+    }
+
+    if (logs.length === 0) {
+      return {
+        success: false,
+        error: 'No uncertified logs found for this month/year'
+      };
+    }
+
+    // Validate Date of Issuance
+    const dateOfIssuance = new Date(data.dateOfIssuance);
+    const now = new Date();
+
+    // Check if future date
+    if (dateOfIssuance > now) {
+      return {
+        success: false,
+        error: 'Date of Issuance cannot be in the future'
+      };
+    }
+
+    // Check if more than 60 days in the past
+    const sixtyDaysAgo = new Date(now);
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    if (dateOfIssuance < sixtyDaysAgo) {
+      return {
+        success: false,
+        error: 'Date of Issuance cannot be more than 60 days in the past'
+      };
+    }
+
+    // Calculate Valid Until (1 year from date of issuance)
+    const validUntil = new Date(dateOfIssuance);
+    validUntil.setFullYear(validUntil.getFullYear() + 1);
+
+    // Check for existing certificate for this month/year
+    const allCertsQuery = db.getDocuments('certificates');
+    for (let i = 0; i < allCertsQuery.length; i++) {
+      const cert = allCertsQuery[i].obj;
+      if (cert && cert.employeeId === data.employeeId &&
+          cert.month === data.month && cert.year === data.year) {
+        return {
+          success: false,
+          error: 'Certificate already exists for this month/year'
+        };
+      }
+    }
+
+    // Generate IDs
+    const certificateId = 'CERT_' + Utilities.getUuid();
+    const batchId = 'BATCH_' + Utilities.getUuid();
+    const ledgerId = 'LEDGER_' + Utilities.getUuid();
+
+    // Create certificate document
+    const certData = {
+      certificateId: certificateId,
+      employeeId: data.employeeId,
+      month: data.month,
+      year: data.year,
+      totalEarnedHours: totalEarnedHours,
+      dateOfIssuance: dateOfIssuance.toISOString(),
+      validUntil: validUntil.toISOString(),
+      logIds: logs.map(log => log.logId),
+      createdAt: new Date().toISOString(),
+      createdBy: Session.getActiveUser().getEmail()
+    };
+
+    db.createDocument('certificates/' + certificateId, certData);
+
+    // Update all logs to Active status
+    logs.forEach(log => {
+      db.updateDocument('overtimeLogs/' + log.logId, {
+        status: 'Active',
+        certificateId: certificateId,
+        validUntil: validUntil.toISOString(),
+        certifiedAt: new Date().toISOString(),
+        certifiedBy: Session.getActiveUser().getEmail()
+      });
+    });
+
+    // Create credit batch
+    const batchData = {
+      batchId: batchId,
+      employeeId: data.employeeId,
+      certificateId: certificateId,
+      earnedHours: totalEarnedHours,
+      remainingHours: totalEarnedHours,
+      issueDate: dateOfIssuance.toISOString(),
+      expiryDate: validUntil.toISOString(),
+      status: 'Active',
+      isHistorical: false,
+      createdAt: new Date().toISOString()
+    };
+
+    db.createDocument('creditBatches/' + batchId, batchData);
+
+    // Create ledger entry
+    const allBatchDocs = db.getDocuments('creditBatches');
+    let balanceAfter = 0;
+    for (let i = 0; i < allBatchDocs.length; i++) {
+      const batch = allBatchDocs[i].obj;
+      if (batch && batch.employeeId === data.employeeId && batch.status === 'Active') {
+        balanceAfter += Number(batch.remainingHours || 0);
+      }
+    }
+
+    const ledgerData = {
+      ledgerId: ledgerId,
+      employeeId: data.employeeId,
+      transactionDate: dateOfIssuance.toISOString(),
+      transactionType: 'Earned',
+      referenceId: certificateId,
+      hoursChange: totalEarnedHours,
+      balanceAfter: balanceAfter,
+      remarks: `Certificate ${certificateId} issued`,
+      createdAt: new Date().toISOString()
+    };
+
+    db.createDocument('ledger/' + ledgerId, ledgerData);
+
+    // Generate PDF (will implement this next)
+    let pdfUrl = null;
+    try {
+      pdfUrl = generateCertificatePDF({
+        employee: employee,
+        totalHours: totalEarnedHours,
+        dateOfIssuance: dateOfIssuance,
+        validUntil: validUntil
+      });
+    } catch (pdfError) {
+      Logger.log('PDF generation failed: ' + pdfError.toString());
+      // Continue even if PDF fails
+    }
+
+    return {
+      success: true,
+      certificateId: certificateId,
+      totalEarnedHours: totalEarnedHours,
+      pdfUrl: pdfUrl
+    };
+
+  } catch (error) {
+    Logger.log('Error generating certificate: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Generate certificates for multiple employees (batch mode)
+function generateBatchCertificates_SERVER(data) {
+  try {
+    if (!data.employeeIds || data.employeeIds.length === 0 ||
+        data.month === undefined || !data.year || !data.dateOfIssuance) {
+      return {
+        success: false,
+        error: 'Missing required data'
+      };
+    }
+
+    const results = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const employeeId of data.employeeIds) {
+      const result = generateCOCCertificate_SERVER({
+        employeeId: employeeId,
+        month: data.month,
+        year: data.year,
+        dateOfIssuance: data.dateOfIssuance
+      });
+
+      results.push({
+        employeeId: employeeId,
+        success: result.success,
+        error: result.error || null,
+        certificateId: result.certificateId || null
+      });
+
+      if (result.success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    return {
+      success: true,
+      successCount: successCount,
+      failCount: failCount,
+      results: results
+    };
+
+  } catch (error) {
+    Logger.log('Error in batch generation: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Helper function to generate PDF certificate
+function generateCertificatePDF(data) {
+  try {
+    const ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
+    const templateSheet = ss.getSheetByName('CERTIFICATE');
+
+    if (!templateSheet) {
+      throw new Error('CERTIFICATE template sheet not found');
+    }
+
+    // Create temporary copy
+    const tempSheetName = 'TEMP_CERT_' + data.employee.employeeId + '_' + Date.now();
+    const tempSheet = templateSheet.copyTo(ss);
+    tempSheet.setName(tempSheetName);
+
+    // Fill in data (adjust cell references based on your template)
+    const employeeName = `${data.employee.firstName} ${data.employee.middleName || ''} ${data.employee.lastName}`.toUpperCase().trim();
+    const position = (data.employee.position || '').toUpperCase();
+    const office = (data.employee.office || '').toUpperCase();
+
+    // First certificate (top) - adjust these cell references to match your template
+    tempSheet.getRange('E4').setValue(employeeName);
+    tempSheet.getRange('B6').setValue(position);
+    tempSheet.getRange('F6').setValue(office);
+    tempSheet.getRange('B9').setValue(data.totalHours.toFixed(1));
+    tempSheet.getRange('D19').setValue(Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
+    tempSheet.getRange('D20').setValue(Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
+
+    // Second certificate (bottom) - offset by ~24 rows (adjust based on your template)
+    tempSheet.getRange('E28').setValue(employeeName);
+    tempSheet.getRange('B30').setValue(position);
+    tempSheet.getRange('F30').setValue(office);
+    tempSheet.getRange('B33').setValue(data.totalHours.toFixed(1));
+    tempSheet.getRange('D43').setValue(Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
+    tempSheet.getRange('D44').setValue(Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
+
+    // Flush changes
+    SpreadsheetApp.flush();
+
+    // Convert to PDF
+    const pdfBlob = tempSheet.getParent().getAs('application/pdf');
+    pdfBlob.setName('COC_Certificate_' + data.employee.employeeId + '_' + Date.now() + '.pdf');
+
+    // Save to Drive
+    const folder = DriveApp.getRootFolder(); // Or specify a specific folder
+    const pdfFile = folder.createFile(pdfBlob);
+    const pdfUrl = pdfFile.getUrl();
+
+    // Delete temporary sheet
+    ss.deleteSheet(tempSheet);
+
+    return pdfUrl;
+
+  } catch (error) {
+    Logger.log('PDF generation error: ' + error.toString());
+    throw error;
+  }
+}
+
 function logCto_SERVER(data) {
   try {
     const db = getFirestore();
