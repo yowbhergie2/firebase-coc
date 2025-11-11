@@ -1662,25 +1662,28 @@
       }
 
       try {
-        const histResult = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getHistoricalBalanceMonths_SERVER(employeeId, year);
-        });
+        // Load historical balance and overtime months in PARALLEL
+        const [histResult, overtimeResult] = await Promise.all([
+          new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .getHistoricalBalanceMonths_SERVER(employeeId, year);
+          }),
+          new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .getOvertimeMonths_SERVER(employeeId, year);
+          })
+        ]);
 
+        // Apply historical states
         const historicalMonths = Array.isArray(histResult.months) ? histResult.months : [];
         historicalBalanceCache.set(cacheKey, historicalMonths);
         applyHistoricalStates(monthSelect, historicalMonths);
 
-        // Get months with overtime entries
-        const overtimeResult = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getOvertimeMonths_SERVER(employeeId, year);
-        });
-
+        // Apply overtime indicators
         const overtimeMonths = Array.isArray(overtimeResult.months) ? overtimeResult.months : [];
         applyOvertimeIndicators(monthSelect, overtimeMonths);
 
