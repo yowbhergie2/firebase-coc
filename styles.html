@@ -368,6 +368,24 @@
   .form-select.is-invalid ~ .invalid-feedback {
     display: block;
   }
+  .border-danger {
+    border-color: #ef4444 !important;
+    background-color: #fef2f2 !important;
+  }
+  .border-danger:focus {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+  }
+  input[type="time"].is-invalid,
+  input[type="time"].border-danger {
+    border-width: 2px;
+    animation: shake 0.3s ease-in-out;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
   .modal-content {
     border: none;
     border-radius: 12px;
