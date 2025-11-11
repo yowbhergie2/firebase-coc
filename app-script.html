@@ -1532,8 +1532,8 @@
           const helpText = document.getElementById('cert-batch-date-help');
           helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
         } else {
-          tbody.innerHTML = '<tr><td colspan="5" class="text-center">No employees with uncertified overtime for this month</td></tr>';
-          tableSection.style.display = 'block';
+          // No employees found - hide the entire section
+          tableSection.style.display = 'none';
         }
 
       } catch (error) {
