@@ -331,6 +331,42 @@ function getHistoricalBalanceMonths_SERVER(employeeId, year) {
   }
 }
 
+// Get months with overtime entries for an employee
+function getOvertimeMonths_SERVER(employeeId, year) {
+  try {
+    const db = getFirestore();
+    const allLogsQuery = db.getDocuments('overtimeLogs');
+
+    const monthsWithEntries = new Set();
+
+    for (let i = 0; i < allLogsQuery.length; i++) {
+      const log = allLogsQuery[i].obj;
+      if (log && log.employeeId === employeeId && log.overtimeDate) {
+        const logDate = new Date(log.overtimeDate);
+        const logYear = logDate.getFullYear();
+        const logMonth = logDate.getMonth(); // 0-indexed
+
+        if (logYear === parseInt(year)) {
+          monthsWithEntries.add(logMonth);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      months: Array.from(monthsWithEntries)
+    };
+
+  } catch (error) {
+    Logger.log('Error getting overtime months: ' + error.toString());
+    return {
+      success: false,
+      months: [],
+      error: error.toString()
+    };
+  }
+}
+
 // Log overtime batch
 function logOvertimeBatch_SERVER(data) {
   try {

@@ -1603,6 +1603,23 @@
       });
     }
 
+    function applyOvertimeIndicators(monthSelect, overtimeMonths) {
+      const overtimeSet = new Set(overtimeMonths);
+      Array.from(monthSelect.options).forEach(option => {
+        if (option.value === '' || option.dataset.state === 'future' || option.dataset.state === 'historical') return;
+        const monthValue = parseInt(option.value);
+        const monthName = monthNames[monthValue];
+
+        if (overtimeSet.has(monthValue)) {
+          // Add green dot indicator for months with entries
+          option.textContent = `🟢 ${monthName}`;
+          option.style.color = '#059669'; // Green color
+          option.style.fontWeight = '500';
+          option.dataset.hasEntries = 'true';
+        }
+      });
+    }
+
     function ensureValidMonthSelection(monthSelect) {
       if (!monthSelect) return;
       const selectedValue = monthSelect.value;
@@ -1655,6 +1672,18 @@
         const historicalMonths = Array.isArray(histResult.months) ? histResult.months : [];
         historicalBalanceCache.set(cacheKey, historicalMonths);
         applyHistoricalStates(monthSelect, historicalMonths);
+
+        // Get months with overtime entries
+        const overtimeResult = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .getOvertimeMonths_SERVER(employeeId, year);
+        });
+
+        const overtimeMonths = Array.isArray(overtimeResult.months) ? overtimeResult.months : [];
+        applyOvertimeIndicators(monthSelect, overtimeMonths);
+
       } catch (error) {
         console.error('Error updating month options:', error);
       } finally {
@@ -2441,8 +2470,28 @@
         return;
       }
 
-      // Show spinner
+      // Get elements to disable
+      const submitBtn = document.querySelector('button[onclick="submitOvertimeForm()"]');
+      const addDayBtn = document.getElementById('ot-add-day-btn');
       const spinner = document.getElementById('ot-submit-spinner');
+      const employeeInput = document.getElementById('ot-employee-search');
+      const monthSelect = document.getElementById('ot-month');
+      const yearSelect = document.getElementById('ot-year');
+      const allInputs = document.querySelectorAll('#ot-entries-tbody input, #ot-entries-tbody button');
+
+      // Disable all elements
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.6';
+        submitBtn.style.cursor = 'not-allowed';
+      }
+      if (addDayBtn) addDayBtn.disabled = true;
+      if (employeeInput) employeeInput.disabled = true;
+      if (monthSelect) monthSelect.disabled = true;
+      if (yearSelect) yearSelect.disabled = true;
+      allInputs.forEach(input => input.disabled = true);
+
+      // Show spinner
       spinner.classList.remove('d-none');
 
       try {
@@ -2493,6 +2542,17 @@
       } catch (error) {
         Modal.error('Error', 'Failed to log overtime: ' + error);
       } finally {
+        // Re-enable all elements
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.style.cursor = 'pointer';
+        }
+        if (addDayBtn) addDayBtn.disabled = false;
+        if (employeeInput) employeeInput.disabled = false;
+        if (monthSelect) monthSelect.disabled = false;
+        if (yearSelect) yearSelect.disabled = false;
+        allInputs.forEach(input => input.disabled = false);
         spinner.classList.add('d-none');
       }
     };
