@@ -136,6 +136,18 @@ function showAppModal() {
 }
 
 // ============================
+// HTML INCLUDE HELPER
+// ============================
+
+/**
+ * Include external HTML files for modular HTML structure
+ * Usage in HTML: <?!= include('filename') ?>
+ */
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// ============================
 // CLIENT-SIDE CONFIG & TOKEN
 // ============================
 
