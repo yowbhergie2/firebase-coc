@@ -813,10 +813,11 @@ function generateCOCCertificate_SERVER(data) {
     const dateOfIssuance = new Date(data.dateOfIssuance);
 
     // Calculate valid date range: last day of earned month to last day of following month
-    const lastDayOfMonth = new Date(data.year, data.month, 0); // Get last day of the earned month
-    const followingMonth = data.month === 12 ? 1 : data.month + 1;
-    const followingYear = data.month === 12 ? data.year + 1 : data.year;
-    const lastDayOfFollowingMonth = new Date(followingYear, followingMonth, 0);
+    // Note: data.month is 0-based (0=Jan, 1=Feb, ..., 11=Dec)
+    const lastDayOfMonth = new Date(data.year, data.month + 1, 0); // Get last day of the earned month
+    const followingMonth = data.month === 11 ? 0 : data.month + 1; // 11=December -> 0=January
+    const followingYear = data.month === 11 ? data.year + 1 : data.year;
+    const lastDayOfFollowingMonth = new Date(followingYear, followingMonth + 1, 0);
 
     // Normalize dates to midnight for comparison (ignore time portion)
     const issuanceDate = new Date(dateOfIssuance.getFullYear(), dateOfIssuance.getMonth(), dateOfIssuance.getDate());
