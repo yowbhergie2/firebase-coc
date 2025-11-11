@@ -1107,6 +1107,62 @@ function getCertificates_SERVER(filters) {
   }
 }
 
+// Helper function to get signatory configuration
+function getSignatoryConfig() {
+  try {
+    const db = getFirestore();
+    const signatoryDoc = db.getDocument('libraries/signatory');
+
+    if (signatoryDoc && signatoryDoc.obj) {
+      return {
+        name: signatoryDoc.obj.name || '',
+        position: signatoryDoc.obj.position || ''
+      };
+    }
+
+    // Return empty if not configured
+    return {
+      name: '',
+      position: ''
+    };
+  } catch (error) {
+    Logger.log('Error getting signatory config: ' + error.toString());
+    return {
+      name: '',
+      position: ''
+    };
+  }
+}
+
+// Helper function to convert sheet to PDF with proper settings
+function convertSheetToPDF(spreadsheet, sheet) {
+  const sheetId = sheet.getSheetId();
+  const spreadsheetId = spreadsheet.getId();
+
+  // Build export URL with parameters for single page output
+  const url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export' +
+    '?format=pdf' +
+    '&size=a4' +              // A4 paper size
+    '&portrait=true' +        // Portrait orientation
+    '&fitw=true' +            // Fit to page width
+    '&sheetnames=false' +     // Don't show sheet names
+    '&printtitle=false' +     // Don't show title
+    '&pagenumbers=false' +    // Don't show page numbers
+    '&gridlines=false' +      // Don't show gridlines
+    '&fzr=false' +            // Don't repeat frozen rows
+    '&gid=' + sheetId +       // Specific sheet ID
+    '&scale=4';               // Fit to page (scale: 1=Normal, 2=Fit to width, 3=Fit to height, 4=Fit to page)
+
+  const token = ScriptApp.getOAuthToken();
+  const response = UrlFetchApp.fetch(url, {
+    headers: {
+      'Authorization': 'Bearer ' + token
+    }
+  });
+
+  return response.getBlob().setName(sheet.getName() + '.pdf');
+}
+
 // Helper function to generate PDF certificate
 function generateCertificatePDF(data) {
   try {
@@ -1122,32 +1178,64 @@ function generateCertificatePDF(data) {
     const tempSheet = templateSheet.copyTo(ss);
     tempSheet.setName(tempSheetName);
 
-    // Fill in data (adjust cell references based on your template)
+    // Get signatory configuration
+    const signatory = getSignatoryConfig();
+
+    // Prepare employee data
     const employeeName = `${data.employee.firstName} ${data.employee.middleName || ''} ${data.employee.lastName}`.toUpperCase().trim();
     const position = (data.employee.position || '').toUpperCase();
     const office = (data.employee.office || '').toUpperCase();
+    const totalHours = data.totalHours.toFixed(1);
+    const dateIssued = Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MMMM dd, yyyy');
+    const validUntil = Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MMMM dd, yyyy');
 
-    // First certificate (top) - adjust these cell references to match your template
-    tempSheet.getRange('E4').setValue(employeeName);
-    tempSheet.getRange('B6').setValue(position);
-    tempSheet.getRange('F6').setValue(office);
-    tempSheet.getRange('B9').setValue(data.totalHours.toFixed(1));
-    tempSheet.getRange('D19').setValue(Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
-    tempSheet.getRange('D20').setValue(Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
+    // Fill in TOP certificate (rows 1-23)
+    tempSheet.getRange(4, 5).setValue(employeeName);      // E4: Employee Name
+    tempSheet.getRange(6, 2).setValue(position);          // B6: Position
+    tempSheet.getRange(6, 6).setValue(office);            // F6: Office
+    tempSheet.getRange(9, 2).setValue(totalHours);        // B9: Total Hours
+    tempSheet.getRange(15, 6).setValue(signatory.name);   // F15: Signatory Name
+    tempSheet.getRange(16, 6).setValue(signatory.position); // F16: Signatory Position
+    tempSheet.getRange(19, 4).setValue(dateIssued);       // D19: Date Issued
+    tempSheet.getRange(20, 4).setValue(validUntil);       // D20: Valid Until
 
-    // Second certificate (bottom) - offset by ~24 rows (adjust based on your template)
-    tempSheet.getRange('E28').setValue(employeeName);
-    tempSheet.getRange('B30').setValue(position);
-    tempSheet.getRange('F30').setValue(office);
-    tempSheet.getRange('B33').setValue(data.totalHours.toFixed(1));
-    tempSheet.getRange('D43').setValue(Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
-    tempSheet.getRange('D44').setValue(Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MM/dd/yyyy'));
+    // Fill in BOTTOM certificate (rows 24-44, offset by 24 rows)
+    tempSheet.getRange(28, 5).setValue(employeeName);     // E28: Employee Name
+    tempSheet.getRange(30, 2).setValue(position);         // B30: Position
+    tempSheet.getRange(30, 6).setValue(office);           // F30: Office
+    tempSheet.getRange(33, 2).setValue(totalHours);       // B33: Total Hours
+    tempSheet.getRange(39, 6).setValue(signatory.name);   // F39: Signatory Name
+    tempSheet.getRange(40, 6).setValue(signatory.position); // F40: Signatory Position
+    tempSheet.getRange(43, 4).setValue(dateIssued);       // D43: Date Issued
+    tempSheet.getRange(44, 4).setValue(validUntil);       // D44: Valid Until
 
-    // Flush changes
+    // ISSUE 4 FIX: Hide gridlines
+    tempSheet.setHiddenGridlines(true);
+
+    // ISSUE 2 FIX: Clean up extra rows and columns
+    const maxRow = tempSheet.getMaxRows();
+    const maxCol = tempSheet.getMaxColumns();
+
+    // Delete extra rows beyond row 44
+    if (maxRow > 44) {
+      tempSheet.deleteRows(45, maxRow - 44);
+    }
+
+    // Delete extra columns beyond column F (column 6)
+    if (maxCol > 6) {
+      tempSheet.deleteColumns(7, maxCol - 6);
+    }
+
+    // Set print area to A1:F44
+    tempSheet.getRange('A1:F44').activate();
+    ss.setNamedRange('Print_Area', tempSheet.getRange('A1:F44'));
+
+    // Flush all changes before PDF conversion
     SpreadsheetApp.flush();
 
-    // Convert to PDF
-    const pdfBlob = tempSheet.getParent().getAs('application/pdf');
+    // ISSUE 3 FIX: Convert to PDF with proper settings
+    const pdfBlob = convertSheetToPDF(ss, tempSheet);
+
     // Use employee name in format: "LastName, FirstName"
     const pdfFileName = `COC_Certificate_${data.employee.lastName}, ${data.employee.firstName}.pdf`;
     pdfBlob.setName(pdfFileName);
