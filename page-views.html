@@ -698,6 +698,9 @@
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="tab" href="#holidays-tab">Holidays</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="tab" href="#signatory-tab">Signatory</a>
+        </li>
       </ul>
       <div class="tab-content">
         <div class="tab-pane fade show active" id="offices-tab">
@@ -779,6 +782,52 @@
                     <tr><td colspan="5" class="text-center">Loading...</td></tr>
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane fade" id="signatory-tab">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">Signatory Configuration</h5>
+              <small class="text-muted">Configure the signatory information for COC certificates</small>
+            </div>
+            <div class="card-body">
+              <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Note:</strong> The signatory name and position will appear on all generated COC certificates. The name will be automatically converted to uppercase.
+              </div>
+              <form id="signatoryForm">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Signatory Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="signatory-name" placeholder="Enter full name" required>
+                    <small class="text-muted">Will be automatically converted to UPPERCASE</small>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-8 mb-3">
+                    <label class="form-label">Signatory Position/Title <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="signatory-position" rows="4" placeholder="Enter position/title (maximum 4 lines)" required></textarea>
+                    <small class="text-muted">Maximum 4 lines. Press Enter for new line. Example:<br>
+                      Regional Director<br>
+                      DPWH Regional Office II
+                    </small>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-12">
+                    <button type="button" class="btn btn-primary" onclick="saveSignatory()">
+                      <i class="bi bi-save"></i> Save Signatory Configuration
+                    </button>
+                  </div>
+                </div>
+              </form>
+              <div id="signatory-loading" style="display: none;" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">Loading signatory information...</p>
               </div>
             </div>
           </div>

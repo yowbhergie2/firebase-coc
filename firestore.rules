@@ -67,7 +67,13 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isServiceAccount();
     }
-    
+
+    // Signatory - Read by authenticated users, Write by authenticated users (staff)
+    match /libraries/signatory {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
     // Default deny all other access
     match /{document=**} {
       allow read, write: if false;
