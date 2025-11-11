@@ -145,6 +145,91 @@
     </div>
   </div>
 
+  <!-- View Entries Modal -->
+  <div class="modal fade" id="viewEntriesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="viewEntriesModalTitle">Overtime Entries</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Day Type</th>
+                  <th>AM In</th>
+                  <th>AM Out</th>
+                  <th>PM In</th>
+                  <th>PM Out</th>
+                  <th>Hours</th>
+                  <th>COC Earned</th>
+                </tr>
+              </thead>
+              <tbody id="viewEntriesModalBody">
+                <tr><td colspan="8" class="text-center">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3">
+            <strong>Total: <span id="viewEntriesModalTotal" class="text-primary">0.0</span> hours</strong>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generate Certificate Modal -->
+  <div class="modal fade" id="generateCertModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Generate Certificate</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="gen-cert-employee-id">
+          <input type="hidden" id="gen-cert-month">
+          <input type="hidden" id="gen-cert-year">
+
+          <div class="mb-3">
+            <label class="form-label"><strong>Month/Year:</strong></label>
+            <div id="gen-cert-month-display" class="fs-5"></div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label"><strong>Uncertified Hours:</strong></label>
+            <div id="gen-cert-hours-display" class="fs-5 text-primary"></div>
+            <small class="text-muted"><span id="gen-cert-entries-display"></span> entries</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Date of Issuance <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="gen-cert-date-of-issuance" onchange="updateGenCertValidUntil()" required>
+            <small class="text-muted">When will this certificate be issued?</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Valid Until</label>
+            <input type="text" class="form-control" id="gen-cert-valid-until" readonly style="background-color: #f8f9fa;">
+            <small class="text-muted">Auto-calculated (1 year from issuance)</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="submitGenerateCertificate()">
+            <i class="bi bi-file-earmark-check"></i> Generate Certificate & PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal fade" id="universalModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg">

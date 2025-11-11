@@ -287,41 +287,147 @@
 
     <div id="page-generate-cert" class="page-view">
       <h2 class="page-title">Generate COC Certificate</h2>
-      <div class="row mb-3">
-        <div class="col-md-4">
-          <label class="form-label">Select Employee</label>
-          <select class="form-select" id="cert-employee" onchange="loadUncertifiedLogs()"></select>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <h5 class="mb-0">Uncertified Overtime Logs</h5>
-        </div>
-        <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th><input type="checkbox" id="select-all-logs"></th>
-                  <th>Date</th>
-                  <th>Hours Worked</th>
-                  <th>Day Type</th>
-                  <th>Multiplier</th>
-                  <th>Earned Hours</th>
-                </tr>
-              </thead>
-              <tbody id="uncertifiedLogsBody">
-                <tr><td colspan="6" class="text-center">Select an employee</td></tr>
-              </tbody>
-            </table>
+
+      <!-- Tabs -->
+      <ul class="nav nav-tabs mb-3" id="certTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="cert-employee-tab" data-bs-toggle="tab" data-bs-target="#cert-employee-pane" type="button">
+            By Employee
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="cert-batch-tab" data-bs-toggle="tab" data-bs-target="#cert-batch-pane" type="button">
+            Batch by Month
+          </button>
+        </li>
+      </ul>
+
+      <!-- Tab Content -->
+      <div class="tab-content" id="certTabContent">
+
+        <!-- Tab 1: By Employee -->
+        <div class="tab-pane fade show active" id="cert-employee-pane" role="tabpanel">
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Employee <span class="text-danger">*</span></label>
+              <select class="form-select" id="cert-employee" onchange="loadUncertifiedMonths()">
+                <option value="">Select Employee</option>
+              </select>
+            </div>
           </div>
-          <div class="mt-3 d-flex justify-content-between align-items-center">
-            <strong>Total Selected: <span id="total-selected-hours" class="text-primary">0.00</span> hours</strong>
-            <button class="btn btn-primary" onclick="generateCertificate()">
-              <i class="bi bi-file-earmark-check"></i> Generate Certificate
-            </button>
+
+          <!-- Uncertified Months Table -->
+          <div id="cert-employee-table-section" style="display: none;">
+            <div class="card">
+              <div class="card-header">
+                <h5 class="mb-0">Uncertified Overtime by Month</h5>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Month/Year</th>
+                        <th>Entries</th>
+                        <th>Total Hours</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cert-months-tbody">
+                      <tr><td colspan="4" class="text-center">No uncertified overtime logs</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+        <!-- Tab 2: Batch by Month -->
+        <div class="tab-pane fade" id="cert-batch-pane" role="tabpanel">
+          <div class="row mb-3">
+            <div class="col-md-3">
+              <label class="form-label">Month <span class="text-danger">*</span></label>
+              <select class="form-select" id="cert-batch-month">
+                <option value="">Select Month</option>
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Year <span class="text-danger">*</span></label>
+              <select class="form-select" id="cert-batch-year"></select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button class="btn btn-primary" onclick="loadBatchEmployees()">
+                <i class="bi bi-search"></i> Load
+              </button>
+            </div>
+          </div>
+
+          <!-- Batch Employees Table -->
+          <div id="cert-batch-table-section" style="display: none;">
+            <div class="card">
+              <div class="card-header">
+                <h5 class="mb-0">Employees with Uncertified Overtime</h5>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th><input type="checkbox" id="cert-batch-select-all" onchange="toggleBatchSelectAll()"></th>
+                        <th>Employee</th>
+                        <th>Office</th>
+                        <th>Hours</th>
+                        <th>Entries</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cert-batch-tbody">
+                      <tr><td colspan="5" class="text-center">Select month and year, then click Load</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Date of Issuance -->
+                <div class="row mt-3">
+                  <div class="col-md-4">
+                    <label class="form-label">Date of Issuance <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="cert-batch-date-of-issuance" onchange="updateBatchValidUntil()">
+                    <small class="text-muted">Same for all selected employees</small>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Valid Until</label>
+                    <input type="text" class="form-control" id="cert-batch-valid-until" readonly style="background-color: #f8f9fa;">
+                    <small class="text-muted">Auto-calculated (1 year from issuance)</small>
+                  </div>
+                </div>
+
+                <!-- Summary and Action -->
+                <div class="mt-3 d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>Selected: <span id="cert-batch-selected-count" class="text-primary">0</span> employees</strong>
+                    <span class="ms-3">Total: <span id="cert-batch-total-hours" class="text-primary">0.0</span> hours</span>
+                  </div>
+                  <button class="btn btn-primary" onclick="generateBatchCertificates()">
+                    <i class="bi bi-file-earmark-check"></i> Generate All Certificates
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
