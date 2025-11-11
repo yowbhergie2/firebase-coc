@@ -3842,21 +3842,16 @@
       }
 
       try {
-        // Convert name to uppercase
-        const uppercaseName = name.toUpperCase();
-
+        // Name is already uppercase from the input field (real-time conversion)
         // Save to Firestore
         const docRef = doc(db, 'libraries', 'signatory');
         await setDoc(docRef, {
           category: 'signatory',
-          name: uppercaseName,
+          name: name,  // Already uppercase from input field
           position: position,
           updatedAt: new Date().toISOString(),
           updatedBy: auth.currentUser?.email || 'Unknown'
         });
-
-        // Update the input to show uppercase
-        nameInput.value = uppercaseName;
 
         Modal.success('Success!', 'Signatory configuration saved successfully!');
       } catch (error) {
