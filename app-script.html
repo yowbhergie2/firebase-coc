@@ -1,7 +1,7 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import { getAuth, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-    import { getFirestore, collection, query, where, orderBy, onSnapshot, doc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
     let db, auth, currentUser;
     let employeesData = [];
@@ -3653,6 +3653,10 @@
         renderLibraryTable('positions');
       });
 
+      document.querySelector('a[href="#signatory-tab"]')?.addEventListener('shown.bs.tab', function() {
+        loadSignatory();
+      });
+
       // Fix for Bootstrap tabs not firing correctly on first click
       document.querySelectorAll('#employeeTabs a[data-bs-toggle="tab"], #libraryTabs a[data-bs-toggle="tab"]').forEach(tabEl => {
         tabEl.addEventListener('click', function (event) {
@@ -3770,6 +3774,95 @@
           }
         }
       );
+    };
+
+    // Signatory Configuration Functions
+    window.loadSignatory = async function() {
+      const loadingDiv = document.getElementById('signatory-loading');
+      const form = document.getElementById('signatoryForm');
+      const nameInput = document.getElementById('signatory-name');
+      const positionInput = document.getElementById('signatory-position');
+
+      try {
+        // Show loading, hide form
+        loadingDiv.style.display = 'block';
+        form.style.display = 'none';
+
+        // Get signatory document from Firestore
+        const docRef = doc(db, 'libraries', 'signatory');
+        const docSnap = await getDoc(docRef);
+
+        // Hide loading, show form
+        loadingDiv.style.display = 'none';
+        form.style.display = 'block';
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          nameInput.value = data.name || '';
+          positionInput.value = data.position || '';
+        } else {
+          // No signatory configured yet
+          nameInput.value = '';
+          positionInput.value = '';
+        }
+      } catch (error) {
+        loadingDiv.style.display = 'none';
+        form.style.display = 'block';
+        console.error('Error loading signatory:', error);
+        Modal.error('Error', 'Failed to load signatory information: ' + error.message);
+      }
+    };
+
+    window.saveSignatory = async function() {
+      const nameInput = document.getElementById('signatory-name');
+      const positionInput = document.getElementById('signatory-position');
+
+      const name = nameInput.value.trim();
+      const position = positionInput.value.trim();
+
+      // Validation
+      if (!name) {
+        Modal.error('Validation Error', 'Please enter the signatory name');
+        nameInput.focus();
+        return;
+      }
+
+      if (!position) {
+        Modal.error('Validation Error', 'Please enter the signatory position/title');
+        positionInput.focus();
+        return;
+      }
+
+      // Check max 4 lines for position
+      const lines = position.split('\n');
+      if (lines.length > 4) {
+        Modal.error('Validation Error', 'Signatory position cannot exceed 4 lines. Please reduce the number of lines.');
+        positionInput.focus();
+        return;
+      }
+
+      try {
+        // Convert name to uppercase
+        const uppercaseName = name.toUpperCase();
+
+        // Save to Firestore
+        const docRef = doc(db, 'libraries', 'signatory');
+        await setDoc(docRef, {
+          category: 'signatory',
+          name: uppercaseName,
+          position: position,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || 'Unknown'
+        });
+
+        // Update the input to show uppercase
+        nameInput.value = uppercaseName;
+
+        Modal.success('Success!', 'Signatory configuration saved successfully!');
+      } catch (error) {
+        console.error('Error saving signatory:', error);
+        Modal.error('Error', 'Failed to save signatory configuration: ' + error.message);
+      }
     };
 
     // Fix for active state on page navigation
