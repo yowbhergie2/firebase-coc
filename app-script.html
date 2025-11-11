@@ -233,8 +233,8 @@
     }
 
     function populateEmployeeDropdowns() {
-      // Regular dropdowns (except ot-employee and hist-employee which are now searchable)
-      const dropdowns = ['cert-employee', 'ledger-employee', 'cto-employee'];
+      // Regular dropdowns (ledger and CTO)
+      const dropdowns = ['ledger-employee', 'cto-employee'];
       dropdowns.forEach(id => {
         const select = document.getElementById(id);
         if (select) {
@@ -249,6 +249,7 @@
 
       // Populate searchable dropdowns
       populateOvertimeEmployeeDropdown();
+      populateCertEmployeeDropdown();
       populateHistoricalEmployeeDropdown();
       populateHistoricalEmployeeFilterDropdown();
       renderEmployeesWithoutHistoricalBalance();
@@ -332,13 +333,101 @@
       hideOvertimeEmployeeDropdown();
     };
 
+    // Certificate Employee Dropdown Functions
+    function populateCertEmployeeDropdown() {
+      const dropdown = document.getElementById('cert-employee-list');
+      if (!dropdown) return;
+
+      const activeEmployees = employeesData.filter(emp => emp.isActive);
+
+      if (activeEmployees.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-no-results">No active employees found</div>';
+        return;
+      }
+
+      dropdown.innerHTML = activeEmployees.map(emp => `
+        <div class="dropdown-item-custom" onclick="selectCertEmployee('${emp.employeeId}', '${emp.lastName}, ${emp.firstName}')">
+          <span class="employee-name">${emp.lastName}, ${emp.firstName}</span>
+          <span class="employee-details">${emp.employeeId} • ${emp.office} • ${emp.position}</span>
+        </div>
+      `).join('');
+    }
+
+    window.filterCertEmployees = function() {
+      const searchInput = document.getElementById('cert-employee-search');
+      const dropdown = document.getElementById('cert-employee-list');
+      const searchTerm = searchInput.value.toLowerCase().trim();
+
+      if (!searchTerm) {
+        populateCertEmployeeDropdown();
+        return;
+      }
+
+      const activeEmployees = employeesData.filter(emp => emp.isActive);
+      const filtered = activeEmployees.filter(emp => {
+        const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+        const reverseName = `${emp.lastName} ${emp.firstName}`.toLowerCase();
+        return fullName.includes(searchTerm) ||
+               reverseName.includes(searchTerm) ||
+               emp.employeeId.toLowerCase().includes(searchTerm) ||
+               (emp.office && emp.office.toLowerCase().includes(searchTerm)) ||
+               (emp.position && emp.position.toLowerCase().includes(searchTerm));
+      });
+
+      if (filtered.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-no-results">No employees found</div>';
+      } else {
+        dropdown.innerHTML = filtered.map(emp => `
+          <div class="dropdown-item-custom" onclick="selectCertEmployee('${emp.employeeId}', '${emp.lastName}, ${emp.firstName}')">
+            <span class="employee-name">${emp.lastName}, ${emp.firstName}</span>
+            <span class="employee-details">${emp.employeeId} • ${emp.office} • ${emp.position}</span>
+          </div>
+        `).join('');
+      }
+
+      showCertEmployeeDropdown();
+    };
+
+    window.showCertEmployeeDropdown = function() {
+      const dropdown = document.getElementById('cert-employee-dropdown');
+      dropdown.style.display = 'block';
+    };
+
+    window.hideCertEmployeeDropdown = function() {
+      const dropdown = document.getElementById('cert-employee-dropdown');
+      dropdown.style.display = 'none';
+    };
+
+    window.selectCertEmployee = function(employeeId, name) {
+      const searchInput = document.getElementById('cert-employee-search');
+      const hiddenInput = document.getElementById('cert-employee');
+
+      searchInput.value = `${name} (${employeeId})`;
+      hiddenInput.value = employeeId;
+
+      hideCertEmployeeDropdown();
+
+      // Trigger loading uncertified months
+      loadUncertifiedMonths();
+    };
+
     // Close dropdown when clicking outside
     document.addEventListener('click', function(event) {
-      const container = document.querySelector('.searchable-select-container');
-      const dropdown = document.getElementById('ot-employee-dropdown');
+      const otContainer = document.querySelector('.searchable-select-container');
+      const otDropdown = document.getElementById('ot-employee-dropdown');
+      const certDropdown = document.getElementById('cert-employee-dropdown');
 
-      if (container && dropdown && !container.contains(event.target)) {
+      if (otContainer && otDropdown && !otContainer.contains(event.target)) {
         hideOvertimeEmployeeDropdown();
+      }
+
+      // Check if click is outside cert employee search
+      const certSearch = document.getElementById('cert-employee-search');
+      const certDropdownEl = document.getElementById('cert-employee-dropdown');
+      if (certSearch && certDropdownEl &&
+          !certSearch.contains(event.target) &&
+          !certDropdownEl.contains(event.target)) {
+        hideCertEmployeeDropdown();
       }
     });
 
@@ -1169,6 +1258,14 @@
       dateInput.max = maxDate;
       dateInput.disabled = false;
 
+      // Auto-populate with 1st day of following month
+      const firstDayOfFollowingMonth = new Date(followingYear, followingMonth - 1, 1);
+      const defaultDate = firstDayOfFollowingMonth.toISOString().split('T')[0];
+      dateInput.value = defaultDate;
+
+      // Trigger Valid Until calculation
+      updateGenCertValidUntil();
+
       // Update help text to show valid range
       const helpText = dateInput.nextElementSibling;
       helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
@@ -1247,6 +1344,70 @@
       }
     };
 
+    // Reset batch form when month/year changes
+    window.resetBatchForm = function() {
+      const tableSection = document.getElementById('cert-batch-table-section');
+      const batchDateInput = document.getElementById('cert-batch-date-of-issuance');
+      const validUntilInput = document.getElementById('cert-batch-valid-until');
+      const selectAllCheckbox = document.getElementById('cert-batch-select-all');
+
+      // Check if there's any form progress
+      const hasData = tableSection.style.display !== 'none' ||
+                      batchDateInput.value ||
+                      validUntilInput.value ||
+                      (selectAllCheckbox && selectAllCheckbox.checked);
+
+      if (hasData) {
+        // Show confirmation before resetting
+        Modal.confirm(
+          'Reset Form',
+          'Changing the month or year will reset the form and clear your selections. Do you want to continue?',
+          function() {
+            // User confirmed - reset the form
+            performBatchReset();
+          },
+          function() {
+            // User cancelled - revert the month/year selections
+            // This is tricky since we don't know the previous values
+            // For now, just don't reset
+          }
+        );
+      } else {
+        // No data, safe to reset
+        performBatchReset();
+      }
+    };
+
+    function performBatchReset() {
+      const tableSection = document.getElementById('cert-batch-table-section');
+      const tbody = document.getElementById('cert-batch-tbody');
+      const batchDateInput = document.getElementById('cert-batch-date-of-issuance');
+      const validUntilInput = document.getElementById('cert-batch-valid-until');
+      const selectAllCheckbox = document.getElementById('cert-batch-select-all');
+      const helpText = document.getElementById('cert-batch-date-help');
+
+      // Reset table
+      tableSection.style.display = 'none';
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center">Select month and year, then click Load</td></tr>';
+
+      // Reset date inputs
+      batchDateInput.value = '';
+      batchDateInput.disabled = true;
+      batchDateInput.min = '';
+      batchDateInput.max = '';
+      validUntilInput.value = '';
+
+      // Reset checkbox
+      if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+      // Reset help text
+      if (helpText) helpText.textContent = 'Select month & year above to enable';
+
+      // Reset summary
+      document.getElementById('cert-batch-selected-count').textContent = '0';
+      document.getElementById('cert-batch-total-hours').textContent = '0.0';
+    }
+
     // Tab 2: Batch - Load employees by month
     window.loadBatchEmployees = async function() {
       const month = document.getElementById('cert-batch-month').value;
@@ -1305,6 +1466,14 @@
           batchDateInput.min = minDate;
           batchDateInput.max = maxDate;
           batchDateInput.disabled = false;
+
+          // Auto-populate with 1st day of following month
+          const firstDayOfFollowingMonth = new Date(followingYear, followingMonth - 1, 1);
+          const defaultDate = firstDayOfFollowingMonth.toISOString().split('T')[0];
+          batchDateInput.value = defaultDate;
+
+          // Trigger Valid Until calculation
+          updateBatchValidUntil();
 
           // Update help text
           const helpText = document.getElementById('cert-batch-date-help');
@@ -3422,7 +3591,7 @@
           }
         }
 
-        // Set default active tabs for Employees and Libraries pages
+        // Set default active tabs for Employees, Libraries, and Generate Certificate pages
         if (page === 'employees') {
           // Activate the "Active Employees" tab
           const activeTab = document.querySelector('a[href="#active-employees-tab"]');
@@ -3435,6 +3604,13 @@
           const officesTab = document.querySelector('a[href="#offices-tab"]');
           if (officesTab) {
             const tab = new bootstrap.Tab(officesTab);
+            tab.show();
+          }
+        } else if (page === 'generate-cert') {
+          // Activate the "By Employee" tab
+          const certEmployeeTab = document.getElementById('cert-employee-tab');
+          if (certEmployeeTab) {
+            const tab = new bootstrap.Tab(certEmployeeTab);
             tab.show();
           }
         }
