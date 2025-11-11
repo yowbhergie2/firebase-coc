@@ -1249,9 +1249,15 @@
       const followingYear = month === 11 ? year + 1 : year;
       const lastDayOfFollowingMonth = new Date(followingYear, followingMonth + 1, 0);
 
-      // Format dates for input min/max (YYYY-MM-DD)
-      const minDate = lastDayOfMonth.toISOString().split('T')[0];
-      const maxDate = lastDayOfFollowingMonth.toISOString().split('T')[0];
+      // Format dates for input min/max (YYYY-MM-DD) without timezone conversion
+      const formatDateLocal = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      const minDate = formatDateLocal(lastDayOfMonth);
+      const maxDate = formatDateLocal(lastDayOfFollowingMonth);
 
       // Set min/max and enable the date input
       const dateInput = document.getElementById('gen-cert-date-of-issuance');
@@ -1261,7 +1267,11 @@
 
       // Auto-populate with 1st day of following month
       const firstDayOfFollowingMonth = new Date(followingYear, followingMonth, 1);
-      const defaultDate = firstDayOfFollowingMonth.toISOString().split('T')[0];
+      // Format date without timezone conversion to avoid date shifting
+      const defaultYear = firstDayOfFollowingMonth.getFullYear();
+      const defaultMonth = String(firstDayOfFollowingMonth.getMonth() + 1).padStart(2, '0');
+      const defaultDay = String(firstDayOfFollowingMonth.getDate()).padStart(2, '0');
+      const defaultDate = `${defaultYear}-${defaultMonth}-${defaultDay}`;
       dateInput.value = defaultDate;
 
       // Trigger Valid Until calculation
@@ -1510,9 +1520,15 @@
           const followingYear = selectedMonth === 11 ? selectedYear + 1 : selectedYear;
           const lastDayOfFollowingMonth = new Date(followingYear, followingMonth + 1, 0);
 
-          // Format dates for input min/max (YYYY-MM-DD)
-          const minDate = lastDayOfMonth.toISOString().split('T')[0];
-          const maxDate = lastDayOfFollowingMonth.toISOString().split('T')[0];
+          // Format dates for input min/max (YYYY-MM-DD) without timezone conversion
+          const formatDateLocal = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          };
+          const minDate = formatDateLocal(lastDayOfMonth);
+          const maxDate = formatDateLocal(lastDayOfFollowingMonth);
 
           // Enable and set min/max on batch date input
           const batchDateInput = document.getElementById('cert-batch-date-of-issuance');
@@ -1522,7 +1538,11 @@
 
           // Auto-populate with 1st day of following month
           const firstDayOfFollowingMonth = new Date(followingYear, followingMonth, 1);
-          const defaultDate = firstDayOfFollowingMonth.toISOString().split('T')[0];
+          // Format date without timezone conversion to avoid date shifting
+          const defaultYear = firstDayOfFollowingMonth.getFullYear();
+          const defaultMonth = String(firstDayOfFollowingMonth.getMonth() + 1).padStart(2, '0');
+          const defaultDay = String(firstDayOfFollowingMonth.getDate()).padStart(2, '0');
+          const defaultDate = `${defaultYear}-${defaultMonth}-${defaultDay}`;
           batchDateInput.value = defaultDate;
 
           // Trigger Valid Until calculation
