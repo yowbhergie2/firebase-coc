@@ -372,18 +372,18 @@
               <label class="form-label">Month <span class="text-danger">*</span></label>
               <select class="form-select" id="cert-batch-month" onchange="resetBatchForm()">
                 <option value="">Select Month</option>
-                <option value="1">January</option>
-                <option value="2">February</option>
-                <option value="3">March</option>
-                <option value="4">April</option>
-                <option value="5">May</option>
-                <option value="6">June</option>
-                <option value="7">July</option>
-                <option value="8">August</option>
-                <option value="9">September</option>
-                <option value="10">October</option>
-                <option value="11">November</option>
-                <option value="12">December</option>
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
               </select>
             </div>
             <div class="col-md-3">
@@ -458,6 +458,80 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <div id="page-view-certificates" class="page-view">
+      <h2 class="page-title">View COC Certificates</h2>
+
+      <!-- Filters -->
+      <div class="row mb-3">
+        <div class="col-md-3">
+          <label class="form-label">Year</label>
+          <select class="form-select" id="cert-view-year" onchange="loadCertificates()">
+            <option value="">All Years</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Month</label>
+          <select class="form-select" id="cert-view-month" onchange="loadCertificates()">
+            <option value="">All Months</option>
+            <option value="0">January</option>
+            <option value="1">February</option>
+            <option value="2">March</option>
+            <option value="3">April</option>
+            <option value="4">May</option>
+            <option value="5">June</option>
+            <option value="6">July</option>
+            <option value="7">August</option>
+            <option value="8">September</option>
+            <option value="9">October</option>
+            <option value="10">November</option>
+            <option value="11">December</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Employee</label>
+          <input type="text" class="form-control" id="cert-view-search" placeholder="Search by employee name..." oninput="loadCertificates()">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-secondary w-100" onclick="clearCertFilters()">
+            <i class="bi bi-x-circle"></i> Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading Spinner -->
+      <div id="cert-view-loading" style="display: none;" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Loading certificates...</p>
+      </div>
+
+      <!-- Certificates Table -->
+      <div class="card">
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover table-sm">
+              <thead>
+                <tr>
+                  <th>Certificate ID</th>
+                  <th>Employee</th>
+                  <th>Period</th>
+                  <th>Hours</th>
+                  <th>Date of Issuance</th>
+                  <th>Valid Until</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="certificatesTableBody">
+                <tr><td colspan="8" class="text-center">Select filters and load certificates</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
