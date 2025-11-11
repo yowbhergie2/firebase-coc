@@ -3082,12 +3082,23 @@
 
         if (result.success) {
           const title = isUpdate ? 'Employee Updated!' : 'Employee Added!';
-          const message = isUpdate 
-            ? 'Employee information updated successfully.' 
+          const message = isUpdate
+            ? 'Employee information updated successfully.'
             : `Employee ID: ${result.employeeId}`;
           Modal.success(title, message);
           bootstrap.Modal.getInstance(document.getElementById('employeeModal')).hide();
           form.reset();
+
+          // Refresh the currently active tab to show updated employee list
+          const activeTab = document.querySelector('#employeeTabs .nav-link.active');
+          if (activeTab) {
+            const activeTabHref = activeTab.getAttribute('href');
+            if (activeTabHref === '#active-employees-tab') {
+              renderEmployeesTable('active');
+            } else if (activeTabHref === '#inactive-employees-tab') {
+              renderEmployeesTable('inactive');
+            }
+          }
         } else {
           Modal.error('Error', result.error);
         }
