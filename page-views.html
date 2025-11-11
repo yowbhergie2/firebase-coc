@@ -317,6 +317,13 @@
           </div>
 
           <!-- Uncertified Months Table -->
+          <div id="cert-employee-loading" style="display: none;" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading uncertified overtime...</p>
+          </div>
+
           <div id="cert-employee-table-section" style="display: none;">
             <div class="card">
               <div class="card-header">
@@ -375,6 +382,14 @@
             </div>
           </div>
 
+          <!-- Batch Loading Spinner -->
+          <div id="cert-batch-loading" style="display: none;" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading employees...</p>
+          </div>
+
           <!-- Batch Employees Table -->
           <div id="cert-batch-table-section" style="display: none;">
             <div class="card">
@@ -403,13 +418,13 @@
                 <div class="row mt-3">
                   <div class="col-md-4">
                     <label class="form-label">Date of Issuance <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" id="cert-batch-date-of-issuance" onchange="updateBatchValidUntil()">
-                    <small class="text-muted">Same for all selected employees</small>
+                    <input type="date" class="form-control" id="cert-batch-date-of-issuance" onchange="updateBatchValidUntil()" disabled>
+                    <small class="text-muted" id="cert-batch-date-help">Select month & year above to enable</small>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">Valid Until</label>
                     <input type="text" class="form-control" id="cert-batch-valid-until" readonly style="background-color: #f8f9fa;">
-                    <small class="text-muted">Auto-calculated (1 year from issuance)</small>
+                    <small class="text-muted">Auto-calculated (1 year minus 1 day from issuance)</small>
                   </div>
                 </div>
 

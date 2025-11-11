@@ -811,29 +811,32 @@ function generateCOCCertificate_SERVER(data) {
 
     // Validate Date of Issuance
     const dateOfIssuance = new Date(data.dateOfIssuance);
-    const now = new Date();
 
-    // Check if future date
-    if (dateOfIssuance > now) {
+    // Calculate valid date range: last day of earned month to last day of following month
+    const lastDayOfMonth = new Date(data.year, data.month, 0); // Get last day of the earned month
+    const followingMonth = data.month === 12 ? 1 : data.month + 1;
+    const followingYear = data.month === 12 ? data.year + 1 : data.year;
+    const lastDayOfFollowingMonth = new Date(followingYear, followingMonth, 0);
+
+    // Normalize dates to midnight for comparison (ignore time portion)
+    const issuanceDate = new Date(dateOfIssuance.getFullYear(), dateOfIssuance.getMonth(), dateOfIssuance.getDate());
+    const minDate = new Date(lastDayOfMonth.getFullYear(), lastDayOfMonth.getMonth(), lastDayOfMonth.getDate());
+    const maxDate = new Date(lastDayOfFollowingMonth.getFullYear(), lastDayOfFollowingMonth.getMonth(), lastDayOfFollowingMonth.getDate());
+
+    // Validate date is within range
+    if (issuanceDate < minDate || issuanceDate > maxDate) {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                         'July', 'August', 'September', 'October', 'November', 'December'];
       return {
         success: false,
-        error: 'Date of Issuance cannot be in the future'
+        error: `Date of Issuance must be between ${monthNames[lastDayOfMonth.getMonth()]} ${lastDayOfMonth.getDate()}, ${lastDayOfMonth.getFullYear()} and ${monthNames[lastDayOfFollowingMonth.getMonth()]} ${lastDayOfFollowingMonth.getDate()}, ${lastDayOfFollowingMonth.getFullYear()}`
       };
     }
 
-    // Check if more than 60 days in the past
-    const sixtyDaysAgo = new Date(now);
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-    if (dateOfIssuance < sixtyDaysAgo) {
-      return {
-        success: false,
-        error: 'Date of Issuance cannot be more than 60 days in the past'
-      };
-    }
-
-    // Calculate Valid Until (1 year from date of issuance)
+    // Calculate Valid Until (1 year minus 1 day from date of issuance)
     const validUntil = new Date(dateOfIssuance);
     validUntil.setFullYear(validUntil.getFullYear() + 1);
+    validUntil.setDate(validUntil.getDate() - 1);
 
     // Check for existing certificate for this month/year
     const allCertsQuery = db.getDocuments('certificates');
