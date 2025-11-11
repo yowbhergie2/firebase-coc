@@ -923,25 +923,41 @@ function generateCOCCertificate_SERVER(data) {
 
     db.createDocument('ledger/' + ledgerId, ledgerData);
 
-    // Generate PDF (will implement this next)
+    // Generate PDF
     let pdfUrl = null;
+    let pdfId = null;
     try {
-      pdfUrl = generateCertificatePDF({
+      const pdfResult = generateCertificatePDF({
         employee: employee,
         totalHours: totalEarnedHours,
         dateOfIssuance: dateOfIssuance,
         validUntil: validUntil
+      });
+      pdfUrl = pdfResult.url;
+      pdfId = pdfResult.id;
+
+      // Update certificate document with PDF info
+      db.updateDocument('certificates/' + certificateId, {
+        pdfUrl: pdfUrl,
+        pdfId: pdfId
       });
     } catch (pdfError) {
       Logger.log('PDF generation failed: ' + pdfError.toString());
       // Continue even if PDF fails
     }
 
+    // Get employee full name for response
+    const employeeFullName = `${employee.firstName} ${employee.middleName || ''} ${employee.lastName}`.trim();
+
     return {
       success: true,
       certificateId: certificateId,
       totalEarnedHours: totalEarnedHours,
-      pdfUrl: pdfUrl
+      pdfUrl: pdfUrl,
+      employeeName: employeeFullName,
+      monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
+      dateOfIssuance: Utilities.formatDate(dateOfIssuance, Session.getScriptTimeZone(), 'MMMM d, yyyy'),
+      validUntil: Utilities.formatDate(validUntil, Session.getScriptTimeZone(), 'MMMM d, yyyy')
     };
 
   } catch (error) {
@@ -1006,6 +1022,90 @@ function generateBatchCertificates_SERVER(data) {
   }
 }
 
+// Get all certificates with filters
+function getCertificates_SERVER(filters) {
+  try {
+    const db = getFirestore();
+    const allCerts = db.getDocuments('certificates');
+    const allEmployees = db.getDocuments('employees');
+
+    // Build employee map
+    const employeeMap = {};
+    for (let i = 0; i < allEmployees.length; i++) {
+      const emp = allEmployees[i].obj;
+      if (emp) {
+        employeeMap[emp.employeeId] = emp;
+      }
+    }
+
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+
+    let certificates = [];
+    for (let i = 0; i < allCerts.length; i++) {
+      const cert = allCerts[i].obj;
+      if (!cert) continue;
+
+      const employee = employeeMap[cert.employeeId];
+      if (!employee) continue;
+
+      // Apply filters
+      if (filters.year && cert.year !== parseInt(filters.year)) continue;
+      if (filters.month !== undefined && filters.month !== '' && cert.month !== parseInt(filters.month)) continue;
+
+      const employeeName = `${employee.lastName}, ${employee.firstName}`;
+      if (filters.search && filters.search.trim() !== '') {
+        const searchLower = filters.search.toLowerCase();
+        if (!employeeName.toLowerCase().includes(searchLower) &&
+            !cert.certificateId.toLowerCase().includes(searchLower)) {
+          continue;
+        }
+      }
+
+      // Determine status
+      const now = new Date();
+      const validUntil = new Date(cert.validUntil);
+      let status = 'Active';
+      if (validUntil < now) {
+        status = 'Expired';
+      }
+
+      certificates.push({
+        certificateId: cert.certificateId,
+        employeeId: cert.employeeId,
+        employeeName: employeeName,
+        month: cert.month,
+        year: cert.year,
+        period: `${monthNames[cert.month]} ${cert.year}`,
+        totalHours: cert.totalEarnedHours,
+        dateOfIssuance: cert.dateOfIssuance,
+        validUntil: cert.validUntil,
+        pdfUrl: cert.pdfUrl || null,
+        pdfId: cert.pdfId || null,
+        status: status,
+        createdAt: cert.createdAt,
+        createdBy: cert.createdBy
+      });
+    }
+
+    // Sort by creation date (newest first)
+    certificates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return {
+      success: true,
+      certificates: certificates
+    };
+
+  } catch (error) {
+    Logger.log('Error getting certificates: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString(),
+      certificates: []
+    };
+  }
+}
+
 // Helper function to generate PDF certificate
 function generateCertificatePDF(data) {
   try {
@@ -1049,15 +1149,47 @@ function generateCertificatePDF(data) {
     const pdfBlob = tempSheet.getParent().getAs('application/pdf');
     pdfBlob.setName('COC_Certificate_' + data.employee.employeeId + '_' + Date.now() + '.pdf');
 
-    // Save to Drive
-    const folder = DriveApp.getRootFolder(); // Or specify a specific folder
-    const pdfFile = folder.createFile(pdfBlob);
+    // Save to Drive with year/month organization
+    const CERTIFICATES_FOLDER_ID = '1QltJeBLauIIjITAE8UUTNKwWb3u4r4Nr';
+    const mainFolder = DriveApp.getFolderById(CERTIFICATES_FOLDER_ID);
+
+    // Get year and month from date of issuance
+    const year = data.dateOfIssuance.getFullYear();
+    const month = data.dateOfIssuance.getMonth() + 1; // 0-based to 1-based
+    const monthNames = ['01-January', '02-February', '03-March', '04-April', '05-May', '06-June',
+                       '07-July', '08-August', '09-September', '10-October', '11-November', '12-December'];
+    const monthFolderName = monthNames[data.dateOfIssuance.getMonth()];
+
+    // Create or get year folder
+    let yearFolder;
+    const yearFolders = mainFolder.getFoldersByName(year.toString());
+    if (yearFolders.hasNext()) {
+      yearFolder = yearFolders.next();
+    } else {
+      yearFolder = mainFolder.createFolder(year.toString());
+    }
+
+    // Create or get month folder
+    let monthFolder;
+    const monthFolders = yearFolder.getFoldersByName(monthFolderName);
+    if (monthFolders.hasNext()) {
+      monthFolder = monthFolders.next();
+    } else {
+      monthFolder = yearFolder.createFolder(monthFolderName);
+    }
+
+    // Save PDF to month folder
+    const pdfFile = monthFolder.createFile(pdfBlob);
     const pdfUrl = pdfFile.getUrl();
+    const pdfId = pdfFile.getId();
 
     // Delete temporary sheet
     ss.deleteSheet(tempSheet);
 
-    return pdfUrl;
+    return {
+      url: pdfUrl,
+      id: pdfId
+    };
 
   } catch (error) {
     Logger.log('PDF generation error: ' + error.toString());

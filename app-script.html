@@ -1333,22 +1333,50 @@
 
           let message = `
             <div style="text-align: center;">
-              <h4 class="text-success mb-3">Certificate Generated!</h4>
-              <div class="mb-3">
-                <strong>Certificate ID:</strong> ${result.certificateId}<br>
-                <strong>Total Hours:</strong> ${result.totalEarnedHours.toFixed(1)} hours
-              </div>`;
+              <h4 class="text-success mb-3"><i class="bi bi-check-circle-fill"></i> Certificate Generated Successfully!</h4>
+              <table class="table table-bordered mt-3" style="text-align: left;">
+                <tbody>
+                  <tr>
+                    <td style="width: 40%;"><strong>Employee</strong></td>
+                    <td>${result.employeeName}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Period</strong></td>
+                    <td>${result.monthYear}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total Hours</strong></td>
+                    <td><strong class="text-primary">${result.totalEarnedHours.toFixed(1)}</strong> hours</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Certificate ID</strong></td>
+                    <td><code>${result.certificateId}</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Date of Issuance</strong></td>
+                    <td>${result.dateOfIssuance}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Valid Until</strong></td>
+                    <td>${result.validUntil}</td>
+                  </tr>`;
 
           if (result.pdfUrl) {
             message += `
-              <div class="mb-3">
-                <a href="${result.pdfUrl}" target="_blank" class="btn btn-primary">
-                  <i class="bi bi-file-pdf"></i> Download PDF Certificate
-                </a>
-              </div>`;
+                  <tr>
+                    <td><strong>PDF Certificate</strong></td>
+                    <td>
+                      <a href="${result.pdfUrl}" target="_blank" class="btn btn-sm btn-primary">
+                        <i class="bi bi-file-pdf"></i> View/Download PDF
+                      </a>
+                    </td>
+                  </tr>`;
           }
 
-          message += `</div>`;
+          message += `
+                </tbody>
+              </table>
+            </div>`;
 
           Modal.success('Success', message);
 
@@ -1617,6 +1645,92 @@
     };
 
     // Old updateSelectedTotal function removed - no longer needed with new certificate approach
+
+    // View Certificates Functions
+    (function() {
+      // Populate year dropdown on page load
+      const yearSelect = document.getElementById('cert-view-year');
+      if (yearSelect) {
+        const currentYear = new Date().getFullYear();
+        for (let year = currentYear; year >= currentYear - 5; year--) {
+          const option = document.createElement('option');
+          option.value = year;
+          option.textContent = year;
+          yearSelect.appendChild(option);
+        }
+      }
+    })();
+
+    window.loadCertificates = async function() {
+      const loadingDiv = document.getElementById('cert-view-loading');
+      const tbody = document.getElementById('certificatesTableBody');
+
+      const year = document.getElementById('cert-view-year').value;
+      const month = document.getElementById('cert-view-month').value;
+      const search = document.getElementById('cert-view-search').value;
+
+      try {
+        loadingDiv.style.display = 'block';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
+
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .getCertificates_SERVER({
+              year: year,
+              month: month,
+              search: search
+            });
+        });
+
+        loadingDiv.style.display = 'none';
+
+        if (result.success && result.certificates.length > 0) {
+          tbody.innerHTML = result.certificates.map(cert => {
+            const issuanceDate = new Date(cert.dateOfIssuance);
+            const validUntilDate = new Date(cert.validUntil);
+
+            const statusBadge = cert.status === 'Active'
+              ? '<span class="badge bg-success">Active</span>'
+              : '<span class="badge bg-secondary">Expired</span>';
+
+            const pdfButton = cert.pdfUrl
+              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary" title="View PDF">
+                   <i class="bi bi-file-pdf"></i>
+                 </a>`
+              : '<span class="text-muted">No PDF</span>';
+
+            return `
+              <tr>
+                <td><code>${cert.certificateId}</code></td>
+                <td>${cert.employeeName}</td>
+                <td>${cert.period}</td>
+                <td><strong>${cert.totalHours.toFixed(1)}</strong> hrs</td>
+                <td>${issuanceDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                <td>${validUntilDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                <td>${statusBadge}</td>
+                <td>${pdfButton}</td>
+              </tr>
+            `;
+          }).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center">No certificates found</td></tr>';
+        }
+
+      } catch (error) {
+        loadingDiv.style.display = 'none';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading certificates</td></tr>';
+        Modal.error('Error', 'Failed to load certificates: ' + error);
+      }
+    };
+
+    window.clearCertFilters = function() {
+      document.getElementById('cert-view-year').value = '';
+      document.getElementById('cert-view-month').value = '';
+      document.getElementById('cert-view-search').value = '';
+      document.getElementById('certificatesTableBody').innerHTML = '<tr><td colspan="8" class="text-center">Select filters and load certificates</td></tr>';
+    };
 
     window.loadEmployeeLedger = async function() {
       const employeeId = document.getElementById('ledger-employee').value;
