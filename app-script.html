@@ -1832,19 +1832,19 @@
         </td>
         <td>
           <input type="time" class="form-control form-control-sm" id="ot-am-in-${rowId}"
-                 onchange="calculateOvertimeRow(${rowId})">
+                 oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
         </td>
         <td>
           <input type="time" class="form-control form-control-sm" id="ot-am-out-${rowId}"
-                 onchange="calculateOvertimeRow(${rowId})">
+                 oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
         </td>
         <td>
           <input type="time" class="form-control form-control-sm" id="ot-pm-in-${rowId}"
-                 onchange="calculateOvertimeRow(${rowId})">
+                 oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
         </td>
         <td>
           <input type="time" class="form-control form-control-sm" id="ot-pm-out-${rowId}"
-                 onchange="calculateOvertimeRow(${rowId})">
+                 oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
         </td>
         <td>
           <input type="text" class="form-control form-control-sm" id="ot-hours-worked-${rowId}"
@@ -2072,10 +2072,21 @@
       const entry = overtimeEntries.find(e => e.rowId === rowId);
       if (!entry || !entry.date) return;
 
-      const amIn = document.getElementById(`ot-am-in-${rowId}`).value;
-      const amOut = document.getElementById(`ot-am-out-${rowId}`).value;
-      const pmIn = document.getElementById(`ot-pm-in-${rowId}`).value;
-      const pmOut = document.getElementById(`ot-pm-out-${rowId}`).value;
+      const amInEl = document.getElementById(`ot-am-in-${rowId}`);
+      const amOutEl = document.getElementById(`ot-am-out-${rowId}`);
+      const pmInEl = document.getElementById(`ot-pm-in-${rowId}`);
+      const pmOutEl = document.getElementById(`ot-pm-out-${rowId}`);
+
+      const amIn = amInEl.value;
+      const amOut = amOutEl.value;
+      const pmIn = pmInEl.value;
+      const pmOut = pmOutEl.value;
+
+      // Clear all validation states first
+      [amInEl, amOutEl, pmInEl, pmOutEl].forEach(el => {
+        el.classList.remove('is-invalid');
+        el.classList.remove('border-danger');
+      });
 
       // Update entry
       entry.amIn = amIn;
@@ -2086,25 +2097,38 @@
       // Validate time inputs
       let isValid = true;
       let errorMsg = '';
+      const invalidFields = [];
 
       // AM validation
       if (amIn && amOut) {
         const amInTime = parseTime(amIn);
         const amOutTime = parseTime(amOut);
 
-        if (amInTime >= parseTime('13:00')) {
-          errorMsg = 'AM In must be before 1:00 PM';
+        // AM In: Must be 5:00 AM - 12:59 PM
+        if (amInTime < parseTime('05:00') || amInTime >= parseTime('13:00')) {
+          errorMsg = 'AM In must be between 5:00 AM and 12:59 PM';
           isValid = false;
-        } else if (amOutTime < parseTime('08:00') || amOutTime >= parseTime('13:00')) {
-          errorMsg = 'AM Out must be between 8:00 AM and 12:59 PM';
+          invalidFields.push(amInEl);
+        }
+
+        // AM Out: Must be 8:00 AM - 12:59 PM
+        if (amOutTime < parseTime('08:00') || amOutTime >= parseTime('13:00')) {
+          errorMsg = errorMsg || 'AM Out must be between 8:00 AM and 12:59 PM';
           isValid = false;
-        } else if (amOutTime <= amInTime) {
+          invalidFields.push(amOutEl);
+        }
+
+        // AM Out must be after AM In
+        if (isValid && amOutTime <= amInTime) {
           errorMsg = 'AM Out must be after AM In';
           isValid = false;
+          invalidFields.push(amInEl, amOutEl);
         }
       } else if (amIn || amOut) {
         errorMsg = 'Both AM In and AM Out must be filled';
         isValid = false;
+        if (amIn && !amOut) invalidFields.push(amOutEl);
+        if (!amIn && amOut) invalidFields.push(amInEl);
       }
 
       // PM validation
@@ -2112,33 +2136,57 @@
         const pmInTime = parseTime(pmIn);
         const pmOutTime = parseTime(pmOut);
 
+        // PM In: Must be 12:00 PM - 11:59 PM
         if (pmInTime < parseTime('12:00')) {
-          errorMsg = 'PM In must be 12:00 PM or later';
+          errorMsg = errorMsg || 'PM In must be 12:00 PM or later';
           isValid = false;
-        } else if (pmOutTime < parseTime('12:00')) {
-          errorMsg = 'PM Out must be 12:00 PM or later';
+          invalidFields.push(pmInEl);
+        }
+
+        // PM Out: Must be 12:00 PM - 11:59 PM
+        if (pmOutTime < parseTime('12:00')) {
+          errorMsg = errorMsg || 'PM Out must be 12:00 PM or later';
           isValid = false;
-        } else if (pmOutTime <= pmInTime) {
-          errorMsg = 'PM Out must be after PM In';
+          invalidFields.push(pmOutEl);
+        }
+
+        // PM Out must be after PM In
+        if (isValid && pmOutTime <= pmInTime) {
+          errorMsg = errorMsg || 'PM Out must be after PM In';
           isValid = false;
+          invalidFields.push(pmInEl, pmOutEl);
         }
       } else if (pmIn || pmOut) {
-        errorMsg = 'Both PM In and PM Out must be filled';
+        errorMsg = errorMsg || 'Both PM In and PM Out must be filled';
         isValid = false;
+        if (pmIn && !pmOut) invalidFields.push(pmOutEl);
+        if (!pmIn && pmOut) invalidFields.push(pmInEl);
       }
 
       // Noon break validation
-      if (amOut && pmIn) {
+      if (amOut && pmIn && isValid) {
         if (parseTime(pmIn) <= parseTime(amOut)) {
           errorMsg = 'PM In must be after AM Out (noon break required)';
           isValid = false;
+          invalidFields.push(amOutEl, pmInEl);
         }
       }
+
+      // Apply visual feedback to invalid fields
+      invalidFields.forEach(el => {
+        el.classList.add('is-invalid');
+        el.classList.add('border-danger');
+      });
 
       if (!isValid) {
         entry.hoursWorked = 0;
         entry.cocEarned = 0;
         entry.error = errorMsg;
+
+        // Show error tooltip or console message
+        if (invalidFields.length > 0) {
+          invalidFields[0].title = errorMsg;
+        }
       } else {
         entry.error = null;
 
