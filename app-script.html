@@ -1046,19 +1046,28 @@
       const employeeId = document.getElementById('cert-employee').value;
       const tableSection = document.getElementById('cert-employee-table-section');
       const tbody = document.getElementById('cert-months-tbody');
+      const loadingDiv = document.getElementById('cert-employee-loading');
 
       if (!employeeId) {
         tableSection.style.display = 'none';
+        loadingDiv.style.display = 'none';
         return;
       }
 
       try {
+        // Show loading spinner
+        loadingDiv.style.display = 'block';
+        tableSection.style.display = 'none';
+
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
             .withFailureHandler(reject)
             .getUncertifiedMonthsByEmployee_SERVER(employeeId);
         });
+
+        // Hide loading spinner
+        loadingDiv.style.display = 'none';
 
         if (result.success && result.months.length > 0) {
           tbody.innerHTML = result.months.map(month => `
@@ -1083,6 +1092,7 @@
         }
 
       } catch (error) {
+        loadingDiv.style.display = 'none';
         Modal.error('Error', 'Failed to load uncertified months: ' + error);
       }
     };
@@ -1143,6 +1153,26 @@
       document.getElementById('gen-cert-date-of-issuance').value = '';
       document.getElementById('gen-cert-valid-until').value = '';
 
+      // Calculate valid date range: last day of earned month to last day of following month
+      const lastDayOfMonth = new Date(year, month, 0); // month is 1-based, so this gets last day
+      const followingMonth = month === 12 ? 1 : month + 1;
+      const followingYear = month === 12 ? year + 1 : year;
+      const lastDayOfFollowingMonth = new Date(followingYear, followingMonth, 0);
+
+      // Format dates for input min/max (YYYY-MM-DD)
+      const minDate = lastDayOfMonth.toISOString().split('T')[0];
+      const maxDate = lastDayOfFollowingMonth.toISOString().split('T')[0];
+
+      // Set min/max and enable the date input
+      const dateInput = document.getElementById('gen-cert-date-of-issuance');
+      dateInput.min = minDate;
+      dateInput.max = maxDate;
+      dateInput.disabled = false;
+
+      // Update help text to show valid range
+      const helpText = dateInput.nextElementSibling;
+      helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
       const modal = new bootstrap.Modal(document.getElementById('generateCertModal'));
       modal.show();
     };
@@ -1153,6 +1183,7 @@
       if (dateOfIssuance) {
         const date = new Date(dateOfIssuance);
         date.setFullYear(date.getFullYear() + 1);
+        date.setDate(date.getDate() - 1); // Subtract 1 day (1 year minus 1 day)
         document.getElementById('gen-cert-valid-until').value = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       }
     };
@@ -1222,6 +1253,7 @@
       const year = document.getElementById('cert-batch-year').value;
       const tableSection = document.getElementById('cert-batch-table-section');
       const tbody = document.getElementById('cert-batch-tbody');
+      const loadingDiv = document.getElementById('cert-batch-loading');
 
       if (month === '' || !year) {
         Modal.error('Validation Error', 'Please select both month and year');
@@ -1229,12 +1261,19 @@
       }
 
       try {
+        // Show loading spinner
+        loadingDiv.style.display = 'block';
+        tableSection.style.display = 'none';
+
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
             .withFailureHandler(reject)
             .getEmployeesByMonthWithUncertified_SERVER(parseInt(month), parseInt(year));
         });
+
+        // Hide loading spinner
+        loadingDiv.style.display = 'none';
 
         if (result.success && result.employees.length > 0) {
           tbody.innerHTML = result.employees.map(emp => `
@@ -1248,12 +1287,35 @@
           `).join('');
           tableSection.style.display = 'block';
           updateBatchSummary();
+
+          // Calculate valid date range and enable Date of Issuance field
+          const selectedMonth = parseInt(month);
+          const selectedYear = parseInt(year);
+          const lastDayOfMonth = new Date(selectedYear, selectedMonth, 0);
+          const followingMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
+          const followingYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
+          const lastDayOfFollowingMonth = new Date(followingYear, followingMonth, 0);
+
+          // Format dates for input min/max (YYYY-MM-DD)
+          const minDate = lastDayOfMonth.toISOString().split('T')[0];
+          const maxDate = lastDayOfFollowingMonth.toISOString().split('T')[0];
+
+          // Enable and set min/max on batch date input
+          const batchDateInput = document.getElementById('cert-batch-date-of-issuance');
+          batchDateInput.min = minDate;
+          batchDateInput.max = maxDate;
+          batchDateInput.disabled = false;
+
+          // Update help text
+          const helpText = document.getElementById('cert-batch-date-help');
+          helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
         } else {
           tbody.innerHTML = '<tr><td colspan="5" class="text-center">No employees with uncertified overtime for this month</td></tr>';
           tableSection.style.display = 'block';
         }
 
       } catch (error) {
+        loadingDiv.style.display = 'none';
         Modal.error('Error', 'Failed to load employees: ' + error);
       }
     };
@@ -1286,6 +1348,7 @@
       if (dateOfIssuance) {
         const date = new Date(dateOfIssuance);
         date.setFullYear(date.getFullYear() + 1);
+        date.setDate(date.getDate() - 1); // Subtract 1 day (1 year minus 1 day)
         document.getElementById('cert-batch-valid-until').value = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       }
     };

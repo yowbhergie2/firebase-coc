@@ -210,14 +210,14 @@
 
           <div class="mb-3">
             <label class="form-label">Date of Issuance <span class="text-danger">*</span></label>
-            <input type="date" class="form-control" id="gen-cert-date-of-issuance" onchange="updateGenCertValidUntil()" required>
-            <small class="text-muted">When will this certificate be issued?</small>
+            <input type="date" class="form-control" id="gen-cert-date-of-issuance" onchange="updateGenCertValidUntil()" required disabled>
+            <small class="text-muted">Select a month above to enable this field</small>
           </div>
 
           <div class="mb-3">
             <label class="form-label">Valid Until</label>
             <input type="text" class="form-control" id="gen-cert-valid-until" readonly style="background-color: #f8f9fa;">
-            <small class="text-muted">Auto-calculated (1 year from issuance)</small>
+            <small class="text-muted">Auto-calculated (1 year minus 1 day from issuance)</small>
           </div>
         </div>
         <div class="modal-footer">
