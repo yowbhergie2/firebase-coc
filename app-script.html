@@ -1726,6 +1726,12 @@
 
       alertContainer.innerHTML = '';
 
+      // Reset state variables at the start
+      overtimeMonthlyTotal = 0;
+      overtimeTotalBalance = 0;
+      overtimeEntries = [];
+      overtimeRowCounter = 0;
+
       if (!employeeId || month === '' || !year) {
         // Hide all sections if incomplete
         document.getElementById('ot-progress-section').style.display = 'none';
@@ -1733,6 +1739,13 @@
         if (totalSection) totalSection.style.display = 'none';
         if (submitSection) submitSection.style.display = 'none';
         hideEntryContent();
+
+        // Reset display to zero
+        document.getElementById('ot-monthly-hours').textContent = '0.0';
+        document.getElementById('ot-total-hours').textContent = '0.0';
+        document.getElementById('ot-monthly-progress').style.width = '0%';
+        document.getElementById('ot-total-progress').style.width = '0%';
+
         return;
       }
 
