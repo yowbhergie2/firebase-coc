@@ -1779,25 +1779,26 @@
           return;
         }
 
-        // Load existing uncertified logs for this month
-        const existingLogs = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getUncertifiedOvertimeForMonth_SERVER(employeeId, parseInt(month), parseInt(year));
-        });
+        // Load data in PARALLEL for faster performance
+        const [existingLogs, balanceData] = await Promise.all([
+          new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .getUncertifiedOvertimeForMonth_SERVER(employeeId, parseInt(month), parseInt(year));
+          }),
+          new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .getTotalBalance_SERVER(employeeId);
+          })
+        ]);
 
         // Calculate monthly total
         overtimeMonthlyTotal = existingLogs.reduce((sum, log) => sum + Number(log.earnedHours || 0), 0);
 
-        // Get total balance (Active + Uncertified)
-        const balanceData = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getTotalBalance_SERVER(employeeId);
-        });
-
+        // Process balance data
         if (!balanceData.success) {
           throw new Error(balanceData.error || 'Unable to retrieve total balance');
         }
@@ -2555,11 +2556,13 @@
           `;
           Modal.success('Overtime Saved Successfully!', message);
 
-          // Reset form
+          // Reset form - keep employee, clear month/year
+          document.getElementById('ot-month').value = '';
+          document.getElementById('ot-year').value = '';
           overtimeEntries = [];
           document.getElementById('ot-entries-tbody').innerHTML = '';
           calculateOvertimeGrandTotal();
-          updateOvertimeContext();
+          updateOvertimeContext(); // This will hide sections since month/year are empty
         } else {
           Modal.error('Error', result.error);
         }
