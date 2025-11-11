@@ -1432,14 +1432,16 @@
 
     function performBatchReset() {
       const tableSection = document.getElementById('cert-batch-table-section');
+      const noEmployeesDiv = document.getElementById('cert-batch-no-employees');
       const tbody = document.getElementById('cert-batch-tbody');
       const batchDateInput = document.getElementById('cert-batch-date-of-issuance');
       const validUntilInput = document.getElementById('cert-batch-valid-until');
       const selectAllCheckbox = document.getElementById('cert-batch-select-all');
       const helpText = document.getElementById('cert-batch-date-help');
 
-      // Reset table
+      // Reset table and message
       tableSection.style.display = 'none';
+      noEmployeesDiv.style.display = 'none';
       tbody.innerHTML = '<tr><td colspan="5" class="text-center">Select month and year, then click Load</td></tr>';
 
       // Reset date inputs
@@ -1465,6 +1467,7 @@
       const month = document.getElementById('cert-batch-month').value;
       const year = document.getElementById('cert-batch-year').value;
       const tableSection = document.getElementById('cert-batch-table-section');
+      const noEmployeesDiv = document.getElementById('cert-batch-no-employees');
       const tbody = document.getElementById('cert-batch-tbody');
       const loadingDiv = document.getElementById('cert-batch-loading');
 
@@ -1474,9 +1477,10 @@
       }
 
       try {
-        // Show loading spinner
+        // Show loading spinner, hide table and message
         loadingDiv.style.display = 'block';
         tableSection.style.display = 'none';
+        noEmployeesDiv.style.display = 'none';
 
         const result = await new Promise((resolve, reject) => {
           google.script.run
@@ -1499,6 +1503,7 @@
             </tr>
           `).join('');
           tableSection.style.display = 'block';
+          noEmployeesDiv.style.display = 'none';
           updateBatchSummary();
 
           // Calculate valid date range and enable Date of Issuance field
@@ -1532,8 +1537,9 @@
           const helpText = document.getElementById('cert-batch-date-help');
           helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
         } else {
-          // No employees found - hide the entire section
+          // No employees found - show message
           tableSection.style.display = 'none';
+          noEmployeesDiv.style.display = 'block';
         }
 
       } catch (error) {
