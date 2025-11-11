@@ -404,22 +404,9 @@ function logOvertimeBatch_SERVER(data) {
       };
     }
 
-    // Check for duplicate dates (server-side)
+    // Check for duplicate dates within the submission
     const dateSet = new Set();
-
-    // Get all existing overtime logs for this employee
-    const allLogsQuery = db.getDocuments('overtimeLogs');
-    const employeeLogs = [];
-
-    for (let i = 0; i < allLogsQuery.length; i++) {
-      const log = allLogsQuery[i].obj;
-      if (log.employeeId === data.employeeId) {
-        employeeLogs.push(log);
-      }
-    }
-
     for (const entry of data.entries) {
-      // Check for duplicates within the submission
       if (dateSet.has(entry.date)) {
         return {
           success: false,
@@ -427,56 +414,111 @@ function logOvertimeBatch_SERVER(data) {
         };
       }
       dateSet.add(entry.date);
+    }
 
-      // Check if date already exists in database for this employee
-      const entryDateISO = new Date(entry.date).toISOString();
-      for (let i = 0; i < employeeLogs.length; i++) {
-        if (employeeLogs[i].overtimeDate === entryDateISO) {
-          return {
-            success: false,
-            error: `Overtime already logged for ${entry.date}`
-          };
-        }
+    // Get all existing uncertified logs for this employee + month + year
+    const allLogsQuery = db.getDocuments('overtimeLogs');
+    const existingLogsMap = {}; // Map by date ISO string
+    const existingLogIds = new Set();
+
+    for (let i = 0; i < allLogsQuery.length; i++) {
+      const log = allLogsQuery[i].obj;
+      if (log.employeeId === data.employeeId &&
+          log.month === data.month &&
+          log.year === data.year &&
+          log.status === 'Uncertified') {
+        existingLogsMap[log.overtimeDate] = log;
+        existingLogIds.add(log.logId);
       }
     }
 
-    // Create overtime logs
+    // Process entries: UPDATE existing or CREATE new
     let createdCount = 0;
+    let updatedCount = 0;
     let totalCocEarned = 0;
+    const processedLogIds = new Set();
 
     for (const entry of data.entries) {
-      const logId = 'LOG_' + Utilities.getUuid();
       const overtimeDate = new Date(entry.date);
+      const overtimeDateISO = overtimeDate.toISOString();
+      const existingLog = existingLogsMap[overtimeDateISO];
 
-      const logData = {
-        logId: logId,
-        employeeId: data.employeeId,
-        overtimeDate: overtimeDate.toISOString(),
-        dayType: entry.dayType,
-        isHoliday: entry.isHoliday || false,
-        holidayName: entry.holidayName || '',
-        amIn: entry.amIn || null,
-        amOut: entry.amOut || null,
-        pmIn: entry.pmIn || null,
-        pmOut: entry.pmOut || null,
-        hoursWorked: entry.hoursWorked,
-        earnedHours: entry.cocEarned,
-        status: 'Uncertified',
-        month: data.month,
-        year: data.year,
-        createdAt: new Date().toISOString(),
-        createdBy: Session.getActiveUser().getEmail()
-      };
+      if (existingLog) {
+        // UPDATE existing log - merge new data with old metadata
+        const updatedLogData = {
+          logId: existingLog.logId,
+          employeeId: data.employeeId,
+          overtimeDate: overtimeDateISO,
+          dayType: entry.dayType,
+          isHoliday: entry.isHoliday || false,
+          holidayName: entry.holidayName || '',
+          amIn: entry.amIn || null,
+          amOut: entry.amOut || null,
+          pmIn: entry.pmIn || null,
+          pmOut: entry.pmOut || null,
+          hoursWorked: entry.hoursWorked,
+          earnedHours: entry.cocEarned,
+          status: 'Uncertified',
+          month: data.month,
+          year: data.year,
+          // Keep original creation metadata
+          createdAt: existingLog.createdAt,
+          createdBy: existingLog.createdBy,
+          // Add modification metadata
+          lastModifiedAt: new Date().toISOString(),
+          lastModifiedBy: Session.getActiveUser().getEmail()
+        };
 
-      db.createDocument('overtimeLogs/' + logId, logData);
+        db.updateDocument('overtimeLogs/' + existingLog.logId, updatedLogData);
+        processedLogIds.add(existingLog.logId);
+        updatedCount++;
+        totalCocEarned += entry.cocEarned;
 
-      createdCount++;
-      totalCocEarned += entry.cocEarned;
+      } else {
+        // CREATE new log
+        const logId = 'LOG_' + Utilities.getUuid();
+        const logData = {
+          logId: logId,
+          employeeId: data.employeeId,
+          overtimeDate: overtimeDateISO,
+          dayType: entry.dayType,
+          isHoliday: entry.isHoliday || false,
+          holidayName: entry.holidayName || '',
+          amIn: entry.amIn || null,
+          amOut: entry.amOut || null,
+          pmIn: entry.pmIn || null,
+          pmOut: entry.pmOut || null,
+          hoursWorked: entry.hoursWorked,
+          earnedHours: entry.cocEarned,
+          status: 'Uncertified',
+          month: data.month,
+          year: data.year,
+          createdAt: new Date().toISOString(),
+          createdBy: Session.getActiveUser().getEmail()
+        };
+
+        db.createDocument('overtimeLogs/' + logId, logData);
+        createdCount++;
+        totalCocEarned += entry.cocEarned;
+      }
     }
+
+    // DELETE logs that were removed from the form
+    let deletedCount = 0;
+    for (const logId of existingLogIds) {
+      if (!processedLogIds.has(logId)) {
+        db.deleteDocument('overtimeLogs/' + logId);
+        deletedCount++;
+      }
+    }
+
+    Logger.log(`Overtime batch: Created ${createdCount}, Updated ${updatedCount}, Deleted ${deletedCount}`);
 
     return {
       success: true,
-      count: createdCount,
+      created: createdCount,
+      updated: updatedCount,
+      deleted: deletedCount,
       totalCocEarned: totalCocEarned
     };
 

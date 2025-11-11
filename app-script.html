@@ -2536,9 +2536,16 @@
         });
 
         if (result.success) {
+          // Build summary message
+          const summaryParts = [];
+          if (result.created > 0) summaryParts.push(`${result.created} created`);
+          if (result.updated > 0) summaryParts.push(`${result.updated} updated`);
+          if (result.deleted > 0) summaryParts.push(`${result.deleted} deleted`);
+          const summary = summaryParts.join(', ');
+
           const message = `
             <div style="text-align: center;">
-              <h4 class="text-success mb-3">${result.count} overtime log(s) created</h4>
+              <h4 class="text-success mb-3">${summary}</h4>
               <div class="mb-3">
                 <h5 class="text-primary mb-0">${result.totalCocEarned.toFixed(1)} hours</h5>
                 <small class="text-muted">Total COC Earned (Uncertified)</small>
@@ -2546,7 +2553,7 @@
               <p class="text-muted mb-0">Generate a certificate to activate these credits.</p>
             </div>
           `;
-          Modal.success('Overtime Logged Successfully!', message);
+          Modal.success('Overtime Saved Successfully!', message);
 
           // Reset form
           overtimeEntries = [];
