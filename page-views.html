@@ -424,33 +424,6 @@
       </div>
     </div>
 
-    <div id="page-holidays" class="page-view">
-      <h2 class="page-title">Manage Holidays</h2>
-      <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#holidayModal" onclick="resetHolidayForm()">
-        <i class="bi bi-plus-circle"></i> Add Holiday
-      </button>
-      <div class="card">
-        <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Holiday Name</th>
-                  <th>Type</th>
-                  <th>Recurring</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="holidaysTableBody">
-                <tr><td colspan="5" class="text-center">Loading...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div id="page-configuration" class="page-view">
       <h2 class="page-title">System Configuration</h2>
       <div class="card">
@@ -506,6 +479,9 @@
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="tab" href="#positions-tab">Positions</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="tab" href="#holidays-tab">Holidays</a>
+        </li>
       </ul>
       <div class="tab-content">
         <div class="tab-pane fade show active" id="offices-tab">
@@ -560,6 +536,31 @@
                   </thead>
                   <tbody id="positions-list">
                     <tr><td colspan="2" class="text-center">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane fade" id="holidays-tab">
+          <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#holidayModal" onclick="resetHolidayForm()">
+            <i class="bi bi-plus-circle"></i> Add Holiday
+          </button>
+          <div class="card">
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Holiday Name</th>
+                      <th>Type</th>
+                      <th>Recurring</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="holidaysTableBody">
+                    <tr><td colspan="5" class="text-center">Loading...</td></tr>
                   </tbody>
                 </table>
               </div>

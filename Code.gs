@@ -60,65 +60,8 @@ function onOpen() {
     .createMenu('COC Admin')
     .addItem('Open CompTime Tracker', 'showAppModal')
     .addSeparator()
-    .addItem('Initialize Libraries (One-time)', 'initializeLibraries')
-    .addItem('Initialize Holidays (2024-2025)', 'initializeHolidays')
     .addItem('Sync Reports to Sheet', 'syncReportsToSheet')
     .addToUi();
-}
-
-function initializeLibraries() {
-  const ui = SpreadsheetApp.getUi();
-  const response = ui.alert(
-    'Initialize Libraries',
-    'This will create:\n• 9 Offices\n• 45 Positions\n\n⏱️ Expected time: 30-60 seconds\n⚠️ Run this only ONCE\n\nContinue?',
-    ui.ButtonSet.YES_NO
-  );
-
-  if (response == ui.Button.YES) {
-    const startTime = new Date();
-    const result = initializeLibraries_SERVER();
-    const endTime = new Date();
-    const duration = Math.round((endTime - startTime) / 1000);
-
-    if (result.success) {
-      ui.alert(
-        '✓ Libraries Initialized Successfully!',
-        `Offices created: ${result.officesCreated}\nPositions created: ${result.positionsCreated}\n\nCompleted in ${duration} seconds.\n\nYou can now view them in:\nCompTime Tracker → Master → Libraries`,
-        ui.ButtonSet.OK
-      );
-    } else {
-      ui.alert('✗ Error', result.error, ui.ButtonSet.OK);
-    }
-  }
-}
-
-function initializeHolidays() {
-  const ui = SpreadsheetApp.getUi();
-  const response = ui.alert(
-    'Initialize Holidays (2024-2025)',
-    'This will add the predefined Philippines regular and special non-working holidays for calendar years 2024 and 2025.\n\nExisting holidays with the same date will be skipped.\n\nContinue?',
-    ui.ButtonSet.YES_NO
-  );
-
-  if (response !== ui.Button.YES) {
-    return;
-  }
-
-  try {
-    const result = initializeHolidays_SERVER();
-    if (result.success) {
-      let message = `Total predefined holidays: ${result.totalDefined}\nCreated: ${result.createdCount}\nSkipped (already exist): ${result.skippedCount}`;
-      if (Array.isArray(result.createdHolidays) && result.createdHolidays.length > 0) {
-        message += `\n\nCreated entries:\n${result.createdHolidays.join('\n')}`;
-      }
-
-      ui.alert('✓ Holidays Initialized', message, ui.ButtonSet.OK);
-    } else {
-      ui.alert('✗ Error', result.error || 'Failed to initialize holidays.', ui.ButtonSet.OK);
-    }
-  } catch (error) {
-    ui.alert('✗ Error', error.toString(), ui.ButtonSet.OK);
-  }
 }
 
 function showAppModal() {

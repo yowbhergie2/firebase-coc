@@ -1767,15 +1767,114 @@
         // Update progress bars
         updateOvertimeProgress();
 
+        // Clear existing entries first
+        overtimeEntries = [];
+        overtimeRowCounter = 0;
+        document.getElementById('ot-entries-tbody').innerHTML = '';
+
+        // Load existing uncertified logs into the form
+        if (existingLogs && existingLogs.length > 0) {
+          for (const log of existingLogs) {
+            // Parse the overtimeDate to get the day
+            const logDate = new Date(log.overtimeDate);
+            const day = logDate.getDate();
+
+            // Add row for this entry
+            const rowId = ++overtimeRowCounter;
+            const tbody = document.getElementById('ot-entries-tbody');
+            const row = document.createElement('tr');
+            row.id = `ot-row-${rowId}`;
+            row.innerHTML = `
+              <td>
+                <input type="number" class="form-control form-control-sm" id="ot-date-${rowId}" min="1" max="31"
+                       placeholder="Day" inputmode="numeric" onchange="onOvertimeDateChange(${rowId})" required>
+              </td>
+              <td>
+                <span class="badge bg-secondary" id="ot-daytype-${rowId}">-</span>
+              </td>
+              <td>
+                <input type="time" class="form-control form-control-sm" id="ot-am-in-${rowId}"
+                       oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
+              </td>
+              <td>
+                <input type="time" class="form-control form-control-sm" id="ot-am-out-${rowId}"
+                       oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
+              </td>
+              <td>
+                <input type="time" class="form-control form-control-sm" id="ot-pm-in-${rowId}"
+                       oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
+              </td>
+              <td>
+                <input type="time" class="form-control form-control-sm" id="ot-pm-out-${rowId}"
+                       oninput="calculateOvertimeRow(${rowId})" onchange="calculateOvertimeRow(${rowId})">
+              </td>
+              <td>
+                <input type="text" class="form-control form-control-sm" id="ot-hours-worked-${rowId}"
+                       readonly style="background-color: #f8f9fa;">
+              </td>
+              <td>
+                <input type="text" class="form-control form-control-sm" id="ot-coc-earned-${rowId}"
+                       readonly style="background-color: #f8f9fa;">
+              </td>
+              <td>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeOvertimeDay(${rowId})" title="Remove">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            `;
+            tbody.appendChild(row);
+
+            // Create entry object
+            const entry = {
+              rowId: rowId,
+              date: null,
+              dayType: log.dayType || 'weekday',
+              isHoliday: log.isHoliday || false,
+              holidayName: log.holidayName || '',
+              amIn: log.amIn || '',
+              amOut: log.amOut || '',
+              pmIn: log.pmIn || '',
+              pmOut: log.pmOut || '',
+              hoursWorked: Number(log.hoursWorked || 0),
+              cocEarned: Number(log.earnedHours || 0),
+              error: null
+            };
+            overtimeEntries.push(entry);
+
+            // Populate the form fields
+            document.getElementById(`ot-date-${rowId}`).value = day;
+            if (log.amIn) document.getElementById(`ot-am-in-${rowId}`).value = log.amIn;
+            if (log.amOut) document.getElementById(`ot-am-out-${rowId}`).value = log.amOut;
+            if (log.pmIn) document.getElementById(`ot-pm-in-${rowId}`).value = log.pmIn;
+            if (log.pmOut) document.getElementById(`ot-pm-out-${rowId}`).value = log.pmOut;
+            document.getElementById(`ot-hours-worked-${rowId}`).value = entry.hoursWorked.toFixed(1);
+            document.getElementById(`ot-coc-earned-${rowId}`).value = entry.cocEarned.toFixed(1);
+
+            // Set day type badge
+            const badge = document.getElementById(`ot-daytype-${rowId}`);
+            if (log.isHoliday) {
+              badge.textContent = log.holidayName || 'Holiday';
+              badge.className = 'badge bg-danger';
+            } else if (log.dayType === 'weekend') {
+              badge.textContent = 'Weekend';
+              badge.className = 'badge bg-warning text-dark';
+            } else {
+              badge.textContent = 'Weekday';
+              badge.className = 'badge bg-primary';
+            }
+
+            // Trigger date change to set the date properly
+            entry.date = logDate.toISOString().split('T')[0];
+          }
+        }
+
         // Show entry section
         toggleEntryLoading(false);
         if (entrySection) entrySection.style.display = 'block';
         if (totalSection) totalSection.style.display = 'block';
         if (submitSection) submitSection.style.display = 'block';
 
-        // Clear existing entries
-        overtimeEntries = [];
-        document.getElementById('ot-entries-tbody').innerHTML = '';
+        // Calculate grand total
         calculateOvertimeGrandTotal();
 
       } catch (error) {
