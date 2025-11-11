@@ -1622,17 +1622,60 @@
         });
 
         if (result.success) {
+          // Determine if batch succeeded or failed
+          const allFailed = result.successCount === 0;
+
+          // Build error details if any failures occurred
+          let errorDetails = '';
+          if (result.failCount > 0) {
+            const failures = result.results.filter(r => !r.success);
+
+            // Get employee names from the table
+            const employeeNames = {};
+            checkboxes.forEach(cb => {
+              const row = cb.closest('tr');
+              const employeeId = cb.dataset.employeeid;
+              const employeeName = row.cells[1].textContent;
+              employeeNames[employeeId] = employeeName;
+            });
+
+            errorDetails = `
+              <div class="mt-3">
+                <h5 class="text-danger">Failed Certificates:</h5>
+                <div class="text-start" style="max-height: 300px; overflow-y: auto;">
+                  ${failures.map((failure, index) => `
+                    <div class="alert alert-danger py-2 mb-2">
+                      <strong>Employee:</strong> ${employeeNames[failure.employeeId] || failure.employeeId}<br>
+                      <strong>Error:</strong> ${failure.error}
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          }
+
+          // Show different message based on success/failure
+          const title = allFailed ? 'Batch Failed' : 'Batch Complete';
+          const headerClass = allFailed ? 'text-danger' : 'text-success';
+          const headerText = allFailed ? 'Batch Generation Failed!' : 'Batch Generation Complete!';
+
           const message = `
             <div style="text-align: center;">
-              <h4 class="text-success mb-3">Batch Generation Complete!</h4>
+              <h4 class="${headerClass} mb-3">${headerText}</h4>
               <div class="mb-3">
                 <strong>Success:</strong> ${result.successCount} certificates<br>
                 <strong>Failed:</strong> ${result.failCount} certificates
               </div>
+              ${errorDetails}
             </div>
           `;
 
-          Modal.success('Batch Complete', message);
+          // Use error modal if all failed, success modal if at least one succeeded
+          if (allFailed) {
+            Modal.error(title, message);
+          } else {
+            Modal.success(title, message);
+          }
 
           // Clear selection and reload
           document.getElementById('cert-batch-month').value = '';
