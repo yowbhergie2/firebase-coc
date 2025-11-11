@@ -957,6 +957,7 @@ function generateCOCCertificate_SERVER(data) {
       pdfUrl: pdfUrl,
       employeeName: employeeFullName,
       monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
+      // Date format already correct (MMMM d, yyyy) - produces "September 1, 2025"
       dateOfIssuance: Utilities.formatDate(dateOfIssuance, Session.getScriptTimeZone(), 'MMMM d, yyyy'),
       validUntil: Utilities.formatDate(validUntil, Session.getScriptTimeZone(), 'MMMM d, yyyy')
     };
@@ -1139,7 +1140,7 @@ function convertSheetToPDF(spreadsheet, sheet) {
   const sheetId = sheet.getSheetId();
   const spreadsheetId = spreadsheet.getId();
 
-  // Build export URL with parameters for single page output
+  // ISSUE 2 & 3 FIX: Build export URL with optimized parameters for balanced layout
   const url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export' +
     '?format=pdf' +
     '&size=a4' +              // A4 paper size
@@ -1151,7 +1152,9 @@ function convertSheetToPDF(spreadsheet, sheet) {
     '&gridlines=false' +      // Don't show gridlines
     '&fzr=false' +            // Don't repeat frozen rows
     '&gid=' + sheetId +       // Specific sheet ID
-    '&scale=4';               // Fit to page (scale: 1=Normal, 2=Fit to width, 3=Fit to height, 4=Fit to page)
+    '&scale=2' +              // Fit to width (better for balanced layout than scale=4)
+    '&horizontal_alignment=CENTER' +  // Center content horizontally
+    '&vertical_alignment=TOP';        // Align content to top
 
   const token = ScriptApp.getOAuthToken();
   const response = UrlFetchApp.fetch(url, {
@@ -1186,8 +1189,9 @@ function generateCertificatePDF(data) {
     const position = (data.employee.position || '').toUpperCase();
     const office = (data.employee.office || '').toUpperCase();
     const totalHours = data.totalHours.toFixed(1);
-    const dateIssued = Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MMMM dd, yyyy');
-    const validUntil = Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MMMM dd, yyyy');
+    // ISSUE 1 FIX: Use 'MMMM d, yyyy' format to get "September 1, 2025" instead of "September 01, 2025"
+    const dateIssued = Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MMMM d, yyyy');
+    const validUntil = Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MMMM d, yyyy');
 
     // Fill in TOP certificate (rows 1-23)
     tempSheet.getRange(4, 5).setValue(employeeName);      // E4: Employee Name
@@ -1208,6 +1212,15 @@ function generateCertificatePDF(data) {
     tempSheet.getRange(40, 6).setValue(signatory.position); // F40: Signatory Position
     tempSheet.getRange(43, 4).setValue(dateIssued);       // D43: Date Issued
     tempSheet.getRange(44, 4).setValue(validUntil);       // D44: Valid Until
+
+    // ISSUE 2 & 3 FIX: Set optimal column widths for better page utilization and logo positioning
+    // These widths are optimized for A4 portrait with proper spacing
+    tempSheet.setColumnWidth(1, 120);  // Column A - Left margin/logo space
+    tempSheet.setColumnWidth(2, 140);  // Column B - Position data
+    tempSheet.setColumnWidth(3, 80);   // Column C - Spacing
+    tempSheet.setColumnWidth(4, 140);  // Column D - Date fields
+    tempSheet.setColumnWidth(5, 180);  // Column E - Employee name
+    tempSheet.setColumnWidth(6, 140);  // Column F - Office/Signatory data
 
     // ISSUE 4 FIX: Hide gridlines
     tempSheet.setHiddenGridlines(true);
