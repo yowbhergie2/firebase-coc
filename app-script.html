@@ -1931,9 +1931,10 @@
 
     // Update progress bars
     function updateOvertimeProgress() {
-      // Monthly accrual (current + entries)
+      // Monthly accrual - only count what's in the form
+      // (existing uncertified logs are already loaded into the form)
       const entriesTotal = overtimeEntries.reduce((sum, entry) => sum + Number(entry.cocEarned || 0), 0);
-      const monthlyTotal = overtimeMonthlyTotal + entriesTotal;
+      const monthlyTotal = entriesTotal;
       const monthlyPercent = Math.min((monthlyTotal / 40) * 100, 100);
 
       document.getElementById('ot-monthly-hours').textContent = monthlyTotal.toFixed(1);
@@ -1943,9 +1944,12 @@
                              monthlyPercent >= 80 ? 'progress-bar bg-warning' :
                              'progress-bar bg-success';
 
-      // Total balance - ensure overtimeTotalBalance is defined
+      // Total balance - Active + Uncertified(other months) + current entries
+      // overtimeTotalBalance already includes ALL uncertified (including current month)
+      // So we subtract current month's uncertified, then add what's in the form
       const currentOvertimeBalance = (typeof overtimeTotalBalance !== 'undefined') ? overtimeTotalBalance : 0;
-      const totalBalance = currentOvertimeBalance + entriesTotal;
+      const currentMonthUncertified = (typeof overtimeMonthlyTotal !== 'undefined') ? overtimeMonthlyTotal : 0;
+      const totalBalance = currentOvertimeBalance - currentMonthUncertified + entriesTotal;
       const totalPercent = Math.min((totalBalance / 120) * 100, 100);
 
       document.getElementById('ot-total-hours').textContent = totalBalance.toFixed(1);
