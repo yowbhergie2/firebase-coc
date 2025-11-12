@@ -33,12 +33,20 @@
         const bodyEl = document.getElementById('universalModalBody');
         const footerEl = document.getElementById('universalModalFooter');
 
+        // Detect if message contains HTML (starts with < or contains HTML tags)
+        const isHtmlContent = config.message.trim().startsWith('<') || /<[a-z][\s\S]*>/i.test(config.message);
+
+        // Use div for HTML content, p for plain text
+        const messageWrapper = isHtmlContent
+          ? `<div class="mb-0">${config.message}</div>`
+          : `<p class="text-muted mb-0">${config.message}</p>`;
+
         bodyEl.innerHTML = `
           <div class="mb-3">
             <i class="bi ${config.icon} ${config.iconColor}" style="font-size: 4rem;"></i>
           </div>
           <h5 class="modal-title mb-3">${config.title}</h5>
-          <p class="text-muted mb-0">${config.message}</p>
+          ${messageWrapper}
         `;
 
         footerEl.innerHTML = '';
@@ -1369,9 +1377,8 @@
           bootstrap.Modal.getInstance(document.getElementById('generateCertModal')).hide();
 
           let message = `
-            <div style="text-align: center;">
-              <h4 class="text-success mb-3"><i class="bi bi-check-circle-fill"></i> Certificate Generated Successfully!</h4>
-              <table class="table table-bordered mt-3" style="text-align: left;">
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
                 <tbody>
                   <tr>
                     <td style="width: 40%;"><strong>Certificate ID</strong></td>
@@ -1403,7 +1410,7 @@
               </table>
             </div>`;
 
-          Modal.success('Success', message);
+          Modal.success('Certificate Generated Successfully!', message);
 
           // Reload the list
           loadUncertifiedMonths();
@@ -1672,13 +1679,10 @@
           }
 
           // Show different message based on success/failure
-          const title = allFailed ? 'Batch Failed' : 'Batch Complete';
-          const headerClass = allFailed ? 'text-danger' : 'text-success';
-          const headerText = allFailed ? 'Batch Generation Failed!' : 'Batch Generation Complete!';
+          const title = allFailed ? 'Batch Generation Failed!' : 'Batch Generation Complete!';
 
           const message = `
-            <div style="text-align: center;">
-              <h4 class="${headerClass} mb-3">${headerText}</h4>
+            <div class="text-center">
               <div class="mb-3">
                 <strong>Success:</strong> ${result.successCount} certificates<br>
                 <strong>Failed:</strong> ${result.failCount} certificates
