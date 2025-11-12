@@ -1691,8 +1691,22 @@ function logCto_SERVER(data) {
     const dateFrom = new Date(data.dateFrom);
     const dateTo = new Date(data.dateTo);
 
+    // Collect batch information for display
+    const batchInfo = [];
     usedBatches.forEach(usage => {
       const newStatus = usage.newRemaining === 0 ? 'Depleted' : 'Active';
+
+      // Get batch details
+      const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
+      if (batchDoc && batchDoc.obj) {
+        const batchData = batchDoc.obj;
+        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+        batchInfo.push({
+          hours: usage.hoursUsed,
+          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
+          year: certDate ? certDate.getFullYear() : 'Unknown'
+        });
+      }
 
       db.updateDocument('creditBatches/' + usage.batchId, {
         remainingHours: usage.newRemaining,
@@ -1729,7 +1743,8 @@ function logCto_SERVER(data) {
       ctoId: ctoId,
       hoursUsed: hoursUsed,
       totalEarned: availableBalance,
-      newBalance: newBalance
+      newBalance: newBalance,
+      creditedFrom: batchInfo
     };
     
   } catch (error) {
@@ -2025,9 +2040,22 @@ function updateCto_SERVER(data) {
     const dateFrom = new Date(data.dateFrom);
     const dateTo = new Date(data.dateTo);
 
-    // Update credit batches with new deductions
+    // Collect batch information for display
+    const batchInfo = [];
     usedBatches.forEach(usage => {
       const newStatus = usage.newRemaining === 0 ? 'Depleted' : 'Active';
+
+      // Get batch details
+      const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
+      if (batchDoc && batchDoc.obj) {
+        const batchData = batchDoc.obj;
+        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+        batchInfo.push({
+          hours: usage.hoursUsed,
+          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
+          year: certDate ? certDate.getFullYear() : 'Unknown'
+        });
+      }
 
       db.updateDocument('creditBatches/' + usage.batchId, {
         remainingHours: usage.newRemaining,
@@ -2058,7 +2086,8 @@ function updateCto_SERVER(data) {
       success: true,
       hoursUsed: newHoursUsed,
       totalEarned: availableBalance,
-      newBalance: newBalance
+      newBalance: newBalance,
+      creditedFrom: batchInfo
     };
 
   } catch (error) {

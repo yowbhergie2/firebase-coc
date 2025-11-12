@@ -3787,6 +3787,16 @@
           const filingDate = new Date(data.filingDate);
           const formattedDate = filingDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+          // Build batch info section
+          let batchInfoHtml = '';
+          if (result.creditedFrom && result.creditedFrom.length > 0) {
+            batchInfoHtml = '<div class="mt-3 text-start"><p class="mb-2"><strong>Deducted from - Month & Year</strong></p><ul class="list-unstyled ms-3">';
+            result.creditedFrom.forEach(batch => {
+              batchInfoHtml += `<li><i class="bi bi-arrow-right"></i> ${batch.hours.toFixed(1)} hrs - ${batch.month} ${batch.year}</li>`;
+            });
+            batchInfoHtml += '</ul></div>';
+          }
+
           const title = isEdit ? 'CTO Updated!' : 'CTO Logged!';
           const message = `
             <div class="text-center">
@@ -3796,18 +3806,19 @@
                 <tbody>
                   <tr>
                     <td style="width: 50%;"><strong>No. of Hours of Earned:</strong></td>
-                    <td><strong>${result.totalEarned.toFixed(2)}</strong> hours</td>
+                    <td><strong>${result.totalEarned.toFixed(1)}</strong> hrs</td>
                   </tr>
                   <tr>
                     <td><strong>Less CTO Application:</strong></td>
-                    <td><strong class="text-danger">${result.hoursUsed.toFixed(2)}</strong> hours</td>
+                    <td><strong class="text-danger">${result.hoursUsed.toFixed(1)}</strong> hrs</td>
                   </tr>
                   <tr class="table-primary">
                     <td><strong>Balance:</strong></td>
-                    <td><strong class="text-primary">${result.newBalance.toFixed(2)}</strong> hours</td>
+                    <td><strong class="text-primary">${result.newBalance.toFixed(1)}</strong> hrs</td>
                   </tr>
                 </tbody>
               </table>
+              ${batchInfoHtml}
             </div>
           `;
           Modal.success(title, message);
