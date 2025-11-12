@@ -938,6 +938,7 @@ function generateCOCCertificate_SERVER(data) {
     // Generate PDF
     let pdfUrl = null;
     let pdfId = null;
+    let pdfWarning = null;
     try {
       const pdfResult = generateCertificatePDF({
         employee: employee,
@@ -955,6 +956,7 @@ function generateCOCCertificate_SERVER(data) {
       });
     } catch (pdfError) {
       Logger.log('PDF generation failed: ' + pdfError.toString());
+      pdfWarning = 'Certificate created successfully, but PDF generation failed: ' + pdfError.toString();
       // Continue even if PDF fails
     }
 
@@ -966,6 +968,7 @@ function generateCOCCertificate_SERVER(data) {
       certificateId: certificateId,
       totalEarnedHours: totalEarnedHours,
       pdfUrl: pdfUrl,
+      pdfWarning: pdfWarning,
       employeeName: employeeFullName,
       monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
       // Date format: MM/dd/yyyy - produces "09/01/2025"

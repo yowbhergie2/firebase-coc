@@ -1407,7 +1407,18 @@
 
           message += `
                 </tbody>
-              </table>
+              </table>`;
+
+          // Add warning if PDF generation failed
+          if (result.pdfWarning) {
+            message += `
+              <div class="alert alert-warning mt-3 text-start">
+                <i class="bi bi-exclamation-triangle"></i> <strong>Warning:</strong><br>
+                ${result.pdfWarning}
+              </div>`;
+          }
+
+          message += `
             </div>`;
 
           Modal.success('Certificate Generated Successfully!', message);
