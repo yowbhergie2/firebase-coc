@@ -1195,11 +1195,22 @@ function convertSheetToPDF(spreadsheet, sheet) {
  */
 function generateCertificatePDF(data) {
   try {
-    const ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
-    const templateSheet = ss.getSheetByName('CERTIFICATE');
+    // Validate CERTIFICATE_TEMPLATE_ID is set
+    if (!CERTIFICATE_TEMPLATE_ID) {
+      throw new Error('CERTIFICATE_TEMPLATE_ID constant is not defined');
+    }
 
+    // Try to open the template spreadsheet
+    let ss;
+    try {
+      ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificate template spreadsheet. Please check CERTIFICATE_TEMPLATE_ID and permissions: ' + e.toString());
+    }
+
+    const templateSheet = ss.getSheetByName('CERTIFICATE');
     if (!templateSheet) {
-      throw new Error('CERTIFICATE template sheet not found');
+      throw new Error('CERTIFICATE template sheet not found in spreadsheet. Available sheets: ' + ss.getSheets().map(s => s.getName()).join(', '));
     }
 
     // Create temporary copy
@@ -1269,7 +1280,18 @@ function generateCertificatePDF(data) {
     SpreadsheetApp.flush();
 
     // Convert to PDF
-    const pdfBlob = convertSheetToPDF(ss, tempSheet);
+    let pdfBlob;
+    try {
+      pdfBlob = convertSheetToPDF(ss, tempSheet);
+    } catch (e) {
+      // Clean up temp sheet before throwing error
+      try {
+        ss.deleteSheet(tempSheet);
+      } catch (cleanupError) {
+        Logger.log('Error cleaning up temp sheet: ' + cleanupError.toString());
+      }
+      throw new Error('Failed to convert sheet to PDF: ' + e.toString());
+    }
 
     // Use employee name in format: "LastName, FirstName"
     const pdfFileName = `COC_Certificate_${data.employee.lastName}, ${data.employee.firstName}.pdf`;
@@ -1277,7 +1299,14 @@ function generateCertificatePDF(data) {
 
     // Save to Drive with year/month organization
     const CERTIFICATES_FOLDER_ID = '1QltJeBLauIIjITAE8UUTNKwWb3u4r4Nr';
-    const mainFolder = DriveApp.getFolderById(CERTIFICATES_FOLDER_ID);
+
+    // Validate folder access
+    let mainFolder;
+    try {
+      mainFolder = DriveApp.getFolderById(CERTIFICATES_FOLDER_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificates folder. Please check folder ID and permissions: ' + e.toString());
+    }
 
     // Get year and month from date of issuance
     const year = data.dateOfIssuance.getFullYear();
@@ -1304,7 +1333,19 @@ function generateCertificatePDF(data) {
     }
 
     // Save PDF to month folder
-    const pdfFile = monthFolder.createFile(pdfBlob);
+    let pdfFile;
+    try {
+      pdfFile = monthFolder.createFile(pdfBlob);
+    } catch (e) {
+      // Clean up temp sheet before throwing error
+      try {
+        ss.deleteSheet(tempSheet);
+      } catch (cleanupError) {
+        Logger.log('Error cleaning up temp sheet: ' + cleanupError.toString());
+      }
+      throw new Error('Failed to save PDF to Drive folder: ' + e.toString());
+    }
+
     const pdfUrl = pdfFile.getUrl();
     const pdfId = pdfFile.getId();
 
