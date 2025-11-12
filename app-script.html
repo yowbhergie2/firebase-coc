@@ -2007,20 +2007,20 @@
 
             // Certificate PDF button
             const certPdfButton = cert.pdfUrl
-              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary mb-1" title="Certificate PDF">
+              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary me-1" title="Certificate PDF">
                    <i class="bi bi-file-pdf"></i> Cert
                  </a>`
               : '';
 
             // Summary PDF button
             const summaryPdfButton = cert.summaryPdfUrl
-              ? `<a href="${cert.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success mb-1" title="Overtime Summary PDF">
+              ? `<a href="${cert.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success" title="Overtime Summary PDF">
                    <i class="bi bi-file-pdf"></i> Summary
                  </a>`
               : '';
 
             const pdfButtons = `
-              <div class="d-flex flex-column gap-1">
+              <div class="d-flex flex-wrap gap-1 align-items-center">
                 ${certPdfButton}
                 ${summaryPdfButton}
               </div>
@@ -2028,14 +2028,14 @@
 
             return `
               <tr>
-                <td><code class="small">${cert.certificateId}</code></td>
-                <td>${cert.employeeName}</td>
-                <td>${cert.period}</td>
-                <td><strong>${cert.totalHours.toFixed(1)}</strong> hrs</td>
-                <td>${formatDate(issuanceDate)}</td>
-                <td>${formatDate(validUntilDate)}</td>
-                <td>${statusBadge}</td>
-                <td>${pdfButtons}</td>
+                <td style="width: 15%;"><code class="small">${cert.certificateId}</code></td>
+                <td style="width: 20%;">${cert.employeeName}</td>
+                <td style="width: 15%;">${cert.period}</td>
+                <td style="width: 10%;"><strong>${cert.totalHours.toFixed(1)}</strong> hrs</td>
+                <td style="width: 10%;">${formatDate(issuanceDate)}</td>
+                <td style="width: 10%;">${formatDate(validUntilDate)}</td>
+                <td style="width: 8%;">${statusBadge}</td>
+                <td style="width: 12%;">${pdfButtons}</td>
               </tr>
             `;
           }).join('');
@@ -4356,8 +4356,75 @@
                            'July', 'August', 'September', 'October', 'November', 'December'];
         const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
         const year = batch.earnedYear || 'Unknown';
-        const createdDate = batch.createdAt ? new Date(batch.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
-        const expiryDate = batch.expiryDate ? new Date(batch.expiryDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+
+        // Fetch overtime entries for this certificate
+        let overtimeEntriesHtml = '';
+        let totalHours = 0;
+
+        if (batch.certificateId) {
+          try {
+            const logsQ = query(
+              collection(db, 'overtimeLogs'),
+              where('certificateId', '==', batch.certificateId),
+              where('employeeId', '==', batch.employeeId),
+              orderBy('date', 'asc')
+            );
+            const logsSnapshot = await getDocs(logsQ);
+
+            if (!logsSnapshot.empty) {
+              overtimeEntriesHtml = `
+                <h6 class="mt-3 mb-2"><strong>${month} ${year} - Overtime Entries</strong></h6>
+                <p class="mb-2 small"><strong>Certificate ID:</strong> <code>${batch.certificateId}</code></p>
+                <div class="table-responsive">
+                  <table class="table table-bordered table-sm table-striped mb-2">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Date</th>
+                        <th>Day Type</th>
+                        <th>AM In</th>
+                        <th>AM Out</th>
+                        <th>PM In</th>
+                        <th>PM Out</th>
+                        <th>Hours</th>
+                        <th>COC Earned</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+              `;
+
+              logsSnapshot.forEach(logDoc => {
+                const log = logDoc.data();
+                const logDate = log.date ? new Date(log.date).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+                const hoursWorked = log.hoursWorked || 0;
+                const cocEarned = log.earnedHours || log.cocEarned || 0;
+                totalHours += cocEarned;
+
+                overtimeEntriesHtml += `
+                  <tr>
+                    <td>${logDate}</td>
+                    <td>${log.dayType || 'N/A'}</td>
+                    <td>${log.amTimeIn || '-'}</td>
+                    <td>${log.amTimeOut || '-'}</td>
+                    <td>${log.pmTimeIn || '-'}</td>
+                    <td>${log.pmTimeOut || '-'}</td>
+                    <td>${hoursWorked.toFixed(1)}</td>
+                    <td><strong>${cocEarned.toFixed(1)}</strong></td>
+                  </tr>
+                `;
+              });
+
+              overtimeEntriesHtml += `
+                    </tbody>
+                  </table>
+                </div>
+                <p class="mb-0"><strong>Total: ${totalHours.toFixed(1)} hours</strong></p>
+              `;
+            }
+          } catch (error) {
+            console.error('Error fetching overtime entries:', error);
+            overtimeEntriesHtml = '<p class="text-muted">Unable to load overtime entries.</p>';
+          }
+        }
 
         Modal.custom({
           title: 'COC Certificate Details',
@@ -4365,51 +4432,7 @@
           iconColor: 'text-success',
           message: `
             <div class="text-start">
-              <table class="table table-bordered table-sm">
-                <tbody>
-                  <tr>
-                    <th style="width: 35%;">Certificate ID</th>
-                    <td>${batch.certificateId || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <th>Employee</th>
-                    <td>${employeeName}</td>
-                  </tr>
-                  <tr>
-                    <th>Employee ID</th>
-                    <td>${batch.employeeId}</td>
-                  </tr>
-                  <tr>
-                    <th>Earned Period</th>
-                    <td><strong>${month} ${year}</strong></td>
-                  </tr>
-                  <tr>
-                    <th>Hours Earned</th>
-                    <td><strong class="text-success">${(batch.totalHours || batch.earnedHours || batch.initialHours || 0).toFixed(2)} hours</strong></td>
-                  </tr>
-                  <tr>
-                    <th>Hours Used</th>
-                    <td>${(batch.usedHours || 0).toFixed(2)} hours</td>
-                  </tr>
-                  <tr>
-                    <th>Remaining Hours</th>
-                    <td><strong class="text-primary">${(batch.remainingHours || 0).toFixed(2)} hours</strong></td>
-                  </tr>
-                  <tr>
-                    <th>Certificate Date</th>
-                    <td>${createdDate}</td>
-                  </tr>
-                  <tr>
-                    <th>Expiry Date</th>
-                    <td>${expiryDate}</td>
-                  </tr>
-                  <tr>
-                    <th>Status</th>
-                    <td><span class="badge ${batch.status === 'Active' ? 'bg-success' : batch.status === 'Expired' ? 'bg-secondary' : 'bg-warning'}">${batch.status}</span></td>
-                  </tr>
-                  ${batch.lastUsedDate ? `<tr><th>Last Used</th><td>${new Date(batch.lastUsedDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</td></tr>` : ''}
-                </tbody>
-              </table>
+              ${overtimeEntriesHtml}
             </div>
           `,
           buttons: [
@@ -4688,19 +4711,8 @@
         return;
       }
 
-      // Validation: If restoring hours, remarks are required
-      const restoreRemarksSection = document.getElementById('cto-restore-remarks-section');
-      if (restoreRemarksSection.style.display !== 'none') {
-        const restoreRemarks = document.getElementById('cto-restore-remarks').value.trim();
-        const errorDiv = document.getElementById('cto-restore-remarks-error');
-        if (!restoreRemarks) {
-          errorDiv.style.display = 'block';
-          document.getElementById('cto-restore-remarks').focus();
-          return;
-        } else {
-          errorDiv.style.display = 'none';
-        }
-      }
+      // Note: Restore remarks are optional for CTO editing
+      // Remarks are only required for CTO cancellation
 
       const data = {
         employeeId: document.getElementById('cto-employee').value,
@@ -4713,9 +4725,10 @@
 
       if (isEdit) {
         data.ledgerId = ledgerId;
-        // Include restore remarks if hours are being reduced
-        if (restoreRemarksSection.style.display !== 'none') {
-          data.restoreRemarks = document.getElementById('cto-restore-remarks').value.trim();
+        // Include restore remarks if provided (optional)
+        const restoreRemarksValue = document.getElementById('cto-restore-remarks').value.trim();
+        if (restoreRemarksValue) {
+          data.restoreRemarks = restoreRemarksValue;
         }
       }
 
