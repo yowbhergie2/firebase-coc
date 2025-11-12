@@ -4025,15 +4025,26 @@
       const newHours = parseFloat(document.getElementById('cto-hours').value) || 0;
       const restoreSection = document.getElementById('cto-restore-remarks-section');
 
+      // Check if elements exist before accessing them
+      if (!restoreSection) {
+        return;
+      }
+
       if (isEditing && originalHours > 0 && newHours < originalHours) {
         // Hours are being reduced - show restore remarks
         restoreSection.style.display = 'block';
       } else {
         // Not reducing hours - hide restore remarks
         restoreSection.style.display = 'none';
-        // Clear the field and error
-        document.getElementById('cto-restore-remarks').value = '';
-        document.getElementById('cto-restore-remarks-error').style.display = 'none';
+        // Clear the field and error if they exist
+        const remarksField = document.getElementById('cto-restore-remarks');
+        const remarksError = document.getElementById('cto-restore-remarks-error');
+        if (remarksField) {
+          remarksField.value = '';
+        }
+        if (remarksError) {
+          remarksError.style.display = 'none';
+        }
       }
     };
 
@@ -4200,7 +4211,11 @@
       document.getElementById('cto-day-breakdown-section').style.display = 'none';
       document.getElementById('cto-restore-remarks-section').style.display = 'none';
       document.getElementById('cto-restore-remarks').value = '';
-      document.getElementById('cto-restore-remarks-error').style.display = 'none';
+      // Element may not exist (removed when remarks made optional)
+      const remarksError = document.getElementById('cto-restore-remarks-error');
+      if (remarksError) {
+        remarksError.style.display = 'none';
+      }
       document.getElementById('cto-available-balance').textContent = '0.00';
       // Disable inclusive date fields
       document.getElementById('cto-date-from').disabled = true;
