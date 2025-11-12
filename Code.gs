@@ -1218,6 +1218,12 @@ function generateCertificatePDF(data) {
     const tempSheet = templateSheet.copyTo(ss);
     tempSheet.setName(tempSheetName);
 
+    // CRITICAL: Ensure temp sheet is visible (not hidden)
+    // Hidden sheets cannot be exported as PDF
+    if (tempSheet.isSheetHidden()) {
+      tempSheet.showSheet();
+    }
+
     // Get signatory configuration
     const signatory = getSignatoryConfig();
 
