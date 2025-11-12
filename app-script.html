@@ -1473,7 +1473,7 @@
       // Reset table and message
       tableSection.style.display = 'none';
       noEmployeesDiv.style.display = 'none';
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center">Select month and year, then click Load</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center">Select month and year, then click Load</td></tr>';
 
       // Reset date inputs
       batchDateInput.value = '';
@@ -1531,6 +1531,11 @@
               <td>${emp.office}</td>
               <td><strong>${emp.totalHours.toFixed(1)}</strong> hrs</td>
               <td>${emp.entriesCount}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewMonthEntries('${emp.employeeId}', ${month}, ${year})">
+                  <i class="bi bi-eye"></i> View
+                </button>
+              </td>
             </tr>
           `).join('');
           tableSection.style.display = 'block';
