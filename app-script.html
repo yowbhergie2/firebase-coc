@@ -4032,27 +4032,31 @@
           }
         }
 
-        // Build day breakdown HTML
+        // Build day breakdown HTML as table
         let dayBreakdownHtml = '';
         if (ledger.dayBreakdown && Object.keys(ledger.dayBreakdown).length > 0) {
-          dayBreakdownHtml = '<div class="mt-3"><strong>Day Breakdown:</strong><ul class="mt-2">';
+          dayBreakdownHtml = '<table class="table table-sm table-bordered mb-0"><tbody>';
           Object.keys(ledger.dayBreakdown).sort().forEach(date => {
             const hours = ledger.dayBreakdown[date];
             const dateObj = new Date(date);
-            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' });
-            dayBreakdownHtml += `<li>${formattedDate}: <strong>${hours} hours</strong></li>`;
+            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
+            dayBreakdownHtml += `<tr><td>${formattedDate}</td><td class="text-end"><strong>${hours} hrs</strong></td></tr>`;
           });
-          dayBreakdownHtml += '</ul></div>';
+          dayBreakdownHtml += '</tbody></table>';
+        } else {
+          dayBreakdownHtml = '<span class="text-muted">N/A</span>';
         }
 
-        // Build FIFO deduction info
+        // Build FIFO deduction info as table
         let fifoHtml = '';
         if (ledger.deductedFrom && ledger.deductedFrom.length > 0) {
-          fifoHtml = '<div class="mt-3"><strong>Deducted From (FIFO):</strong><ul class="mt-2">';
+          fifoHtml = '<table class="table table-sm table-bordered mb-0"><tbody>';
           ledger.deductedFrom.forEach(deduction => {
-            fifoHtml += `<li>${deduction.month} ${deduction.year}: <strong>${deduction.hours} hours</strong></li>`;
+            fifoHtml += `<tr><td>${deduction.month} ${deduction.year}</td><td class="text-end"><strong>${deduction.hours} hrs</strong></td></tr>`;
           });
-          fifoHtml += '</ul></div>';
+          fifoHtml += '</tbody></table>';
+        } else {
+          fifoHtml = '<span class="text-muted">N/A</span>';
         }
 
         const filingDate = ledger.filingDate ? new Date(ledger.filingDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
@@ -4062,23 +4066,47 @@
 
         Modal.custom({
           title: 'CTO Application Details',
+          icon: 'bi-file-text',
+          iconColor: 'text-primary',
           message: `
             <div class="text-start">
-              <div class="mb-3">
-                <strong>Employee:</strong> ${employeeName}<br>
-                <strong>Employee ID:</strong> ${ledger.employeeId}
-              </div>
-              <div class="mb-3">
-                <strong>Filing Date:</strong> ${filingDate}<br>
-                <strong>Inclusive Dates:</strong> ${dateFrom} - ${dateTo}<br>
-                <strong>Total Hours:</strong> ${hoursUsed.toFixed(2)} hours
-              </div>
-              ${dayBreakdownHtml}
-              ${fifoHtml}
-              ${ledger.remarks ? `<div class="mt-3"><strong>Remarks:</strong><br>${ledger.remarks}</div>` : ''}
-              <div class="mt-3">
-                <strong>Status:</strong> <span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${ledger.status}</span>
-              </div>
+              <table class="table table-bordered table-sm">
+                <tbody>
+                  <tr>
+                    <th style="width: 35%;">Employee</th>
+                    <td>${employeeName}</td>
+                  </tr>
+                  <tr>
+                    <th>Employee ID</th>
+                    <td>${ledger.employeeId}</td>
+                  </tr>
+                  <tr>
+                    <th>Filing Date</th>
+                    <td>${filingDate}</td>
+                  </tr>
+                  <tr>
+                    <th>Inclusive Dates</th>
+                    <td>${dateFrom} - ${dateTo}</td>
+                  </tr>
+                  <tr>
+                    <th>Total Hours</th>
+                    <td><strong>${hoursUsed.toFixed(2)} hours</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Day Breakdown</th>
+                    <td>${dayBreakdownHtml}</td>
+                  </tr>
+                  <tr>
+                    <th>Deducted From (FIFO)</th>
+                    <td>${fifoHtml}</td>
+                  </tr>
+                  ${ledger.remarks ? `<tr><th>Remarks</th><td>${ledger.remarks}</td></tr>` : ''}
+                  <tr>
+                    <th>Status</th>
+                    <td><span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${ledger.status}</span></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           `,
           buttons: [
@@ -4261,8 +4289,15 @@
               ${batchInfoHtml}
             </div>
           `;
+          ctoFormDirty = false; // Reset dirty flag
           Modal.success(title, message);
           cancelCtoEdit(); // Reset form
+
+          // Refresh CTO list if on list tab
+          const listTab = document.getElementById('cto-list-content');
+          if (listTab && listTab.classList.contains('show') && listTab.classList.contains('active')) {
+            loadCtoApplications();
+          }
         } else {
           Modal.error('Error', result.error);
         }
@@ -4296,6 +4331,61 @@
         }
       }
     })();
+
+    // Track form changes for unsaved warning
+    let ctoFormDirty = false;
+    const ctoForm = document.getElementById('ctoForm');
+    if (ctoForm) {
+      ctoForm.addEventListener('input', () => {
+        ctoFormDirty = true;
+      });
+      ctoForm.addEventListener('change', () => {
+        ctoFormDirty = true;
+      });
+    }
+
+    // Reset dirty flag when form is reset or submitted
+    const originalCancelCtoEdit = window.cancelCtoEdit;
+    window.cancelCtoEdit = function() {
+      ctoFormDirty = false;
+      originalCancelCtoEdit();
+    };
+
+    // Handle CTO tab switching with unsaved changes warning
+    const ctoListTab = document.getElementById('cto-list-tab');
+    const ctoCalendarTab = document.getElementById('cto-calendar-tab');
+
+    if (ctoListTab) {
+      ctoListTab.addEventListener('click', (e) => {
+        // Warn about unsaved changes
+        if (ctoFormDirty) {
+          if (!confirm('You have unsaved changes in the CTO form. Do you want to discard them?')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          ctoFormDirty = false;
+          cancelCtoEdit();
+        }
+        // Always refresh list when switching to list tab
+        setTimeout(() => loadCtoApplications(), 100);
+      });
+    }
+
+    if (ctoCalendarTab) {
+      ctoCalendarTab.addEventListener('click', (e) => {
+        // Warn about unsaved changes
+        if (ctoFormDirty) {
+          if (!confirm('You have unsaved changes in the CTO form. Do you want to discard them?')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          ctoFormDirty = false;
+          cancelCtoEdit();
+        }
+      });
+    }
 
     // Load CTO Applications (Tab 2)
     window.loadCtoApplications = async function() {

@@ -1907,6 +1907,7 @@ function getCtoApplications_SERVER() {
           balanceAfter: ledger.balanceAfter,
           status: ledger.status || 'Active',
           dayBreakdown: ledger.dayBreakdown || {},
+          deductedFrom: ledger.deductedFrom || [], // FIFO batch info
           remarks: ledger.remarks,
           createdAt: ledger.createdAt
         });
