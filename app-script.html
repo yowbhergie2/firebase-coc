@@ -2080,8 +2080,7 @@
         const ledgerQ = query(
           collection(db, 'ledger'),
           where('employeeId', '==', employeeId),
-          orderBy('transactionDate', 'desc'),
-          orderBy('createdAt', 'desc')
+          orderBy('transactionDate', 'desc')
         );
 
         onSnapshot(ledgerQ, async (snapshot) => {
