@@ -2472,8 +2472,8 @@ function updateCto_SERVER(data) {
 
     // Prepare remarks - include restore remarks if hours were restored
     let ledgerRemarks = data.remarks || `CTO updated on ${new Date().toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`;
-    if (hoursBeingRestored > 0 && data.restoreRemarks) {
-      ledgerRemarks += `\n\n[Hours Restored: ${hoursBeingRestored.toFixed(2)} hrs] ${data.restoreRemarks}`;
+    if (hoursActuallyRestored > 0 && data.restoreRemarks) {
+      ledgerRemarks += `\n\n[Hours Restored: ${hoursActuallyRestored.toFixed(2)} hrs] ${data.restoreRemarks}`;
     }
 
     // Update the ledger entry - preserve all original fields

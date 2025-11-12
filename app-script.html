@@ -4095,28 +4095,28 @@
       // Load CTO data and populate form
       google.script.run
         .withSuccessHandler((result) => {
-          // Re-enable all edit buttons and restore content
-          editButtons.forEach(btn => {
-            btn.disabled = false;
-            btn.classList.remove('opacity-50');
-            if (btn.dataset.originalContent) {
-              btn.innerHTML = btn.dataset.originalContent;
-              delete btn.dataset.originalContent;
-            }
-          });
-
           if (result.success) {
             try {
               const cto = result.application;
 
-              // First, switch to the Log tab before populating form
+              // IMMEDIATELY switch to the Log tab and scroll - before any other operations
               const logTab = document.getElementById('cto-log-tab');
               if (logTab) {
                 logTab.click();
               }
 
-              // Scroll to top
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              // Instant scroll to top (not smooth)
+              window.scrollTo({ top: 0, behavior: 'auto' });
+
+              // Now re-enable buttons (user sees form is loading)
+              editButtons.forEach(btn => {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+                if (btn.dataset.originalContent) {
+                  btn.innerHTML = btn.dataset.originalContent;
+                  delete btn.dataset.originalContent;
+                }
+              });
 
               document.getElementById('cto-ledger-id').value = ledgerId;
 
@@ -4156,33 +4156,50 @@
               const originalHours = Math.abs(cto.hoursChange || 0);
               document.getElementById('cto-original-hours').value = originalHours;
 
-              // Set day selections if dayBreakdown exists
+              // Change button text and show cancel button
+              document.getElementById('cto-submit-text').textContent = 'Update CTO';
+              document.getElementById('cto-cancel-btn').style.display = 'inline-block';
+
+              // Set day selections if dayBreakdown exists - use requestAnimationFrame for better performance
               if (cto.dayBreakdown) {
-                setTimeout(() => {
+                requestAnimationFrame(() => {
                   Object.keys(cto.dayBreakdown).forEach(date => {
                     const hours = cto.dayBreakdown[date];
                     const radio = document.getElementById(hours === 8 ? `whole-${date}` : `half-${date}`);
                     if (radio) radio.checked = true;
                   });
                   calculateCtototalHours();
-                }, 100);
+                });
               }
 
-              // Show balance
-              showCtoBalance();
-
-              // Change button text and show cancel button
-              document.getElementById('cto-submit-text').textContent = 'Update CTO';
-              document.getElementById('cto-cancel-btn').style.display = 'inline-block';
-
-              // Show day breakdown section for editing
-              document.getElementById('cto-day-breakdown-section').style.display = 'block';
+              // Show balance asynchronously (don't block form display)
+              requestAnimationFrame(() => {
+                showCtoBalance();
+              });
 
             } catch (error) {
               console.error('Error populating CTO form:', error);
+              // Re-enable buttons on error
+              editButtons.forEach(btn => {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+                if (btn.dataset.originalContent) {
+                  btn.innerHTML = btn.dataset.originalContent;
+                  delete btn.dataset.originalContent;
+                }
+              });
               Modal.error('Error', 'Failed to populate form: ' + error.message);
             }
           } else {
+            // Re-enable buttons on error
+            editButtons.forEach(btn => {
+              btn.disabled = false;
+              btn.classList.remove('opacity-50');
+              if (btn.dataset.originalContent) {
+                btn.innerHTML = btn.dataset.originalContent;
+                delete btn.dataset.originalContent;
+              }
+            });
             Modal.error('Error', result.error);
           }
         })
@@ -4881,16 +4898,40 @@
       ctoListTab.addEventListener('click', (e) => {
         // Warn about unsaved changes
         if (ctoFormDirty) {
-          if (!confirm('You have unsaved changes in the CTO form. Do you want to discard them?')) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-          ctoFormDirty = false;
-          cancelCtoEdit();
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Show modal instead of confirm dialog
+          Modal.custom({
+            title: 'Unsaved Changes',
+            icon: 'bi-exclamation-triangle',
+            iconColor: 'text-warning',
+            message: 'You have unsaved changes in the CTO form. Do you want to discard them?',
+            buttons: [
+              {
+                text: 'Cancel',
+                class: 'btn-secondary',
+                dismiss: true
+              },
+              {
+                text: 'Discard Changes',
+                class: 'btn-danger',
+                action: () => {
+                  ctoFormDirty = false;
+                  cancelCtoEdit();
+                  // Trigger tab click again
+                  requestAnimationFrame(() => {
+                    ctoListTab.click();
+                  });
+                },
+                dismiss: true
+              }
+            ]
+          });
+          return;
         }
-        // Always refresh list when switching to list tab
-        setTimeout(() => loadCtoApplications(), 100);
+        // Always refresh list when switching to list tab - use requestAnimationFrame for better responsiveness
+        requestAnimationFrame(() => loadCtoApplications());
       });
     }
 
@@ -4898,13 +4939,37 @@
       ctoCalendarTab.addEventListener('click', (e) => {
         // Warn about unsaved changes
         if (ctoFormDirty) {
-          if (!confirm('You have unsaved changes in the CTO form. Do you want to discard them?')) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-          ctoFormDirty = false;
-          cancelCtoEdit();
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Show modal instead of confirm dialog
+          Modal.custom({
+            title: 'Unsaved Changes',
+            icon: 'bi-exclamation-triangle',
+            iconColor: 'text-warning',
+            message: 'You have unsaved changes in the CTO form. Do you want to discard them?',
+            buttons: [
+              {
+                text: 'Cancel',
+                class: 'btn-secondary',
+                dismiss: true
+              },
+              {
+                text: 'Discard Changes',
+                class: 'btn-danger',
+                action: () => {
+                  ctoFormDirty = false;
+                  cancelCtoEdit();
+                  // Trigger tab click again
+                  requestAnimationFrame(() => {
+                    ctoCalendarTab.click();
+                  });
+                },
+                dismiss: true
+              }
+            ]
+          });
+          return;
         }
       });
     }
