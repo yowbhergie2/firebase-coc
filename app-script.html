@@ -1371,8 +1371,8 @@
               <table class="table table-bordered mt-3" style="text-align: left;">
                 <tbody>
                   <tr>
-                    <td style="width: 40%;"><strong>Employee</strong></td>
-                    <td>${result.employeeName}</td>
+                    <td style="width: 40%;"><strong>Certificate ID</strong></td>
+                    <td><code>${result.certificateId}</code></td>
                   </tr>
                   <tr>
                     <td><strong>Period</strong></td>
@@ -1381,18 +1381,6 @@
                   <tr>
                     <td><strong>Total Hours</strong></td>
                     <td><strong class="text-primary">${result.totalEarnedHours.toFixed(1)}</strong> hours</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Certificate ID</strong></td>
-                    <td><code>${result.certificateId}</code></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Date of Issuance</strong></td>
-                    <td>${result.dateOfIssuance}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Valid Until</strong></td>
-                    <td>${result.validUntil}</td>
                   </tr>`;
 
           if (result.pdfUrl) {
