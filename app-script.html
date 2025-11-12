@@ -2059,10 +2059,11 @@
         for (const docSnap of snapshot.docs) {
           const ledger = docSnap.data();
           const date = new Date(ledger.transactionDate);
-          const hoursClass = ledger.hoursChange >= 0 ? 'text-success' : 'text-danger';
 
-          let detailsHtml = '';
-          let actionHtml = '';
+          let particularsHtml = '';
+          let earnedHtml = '—';
+          let usedHtml = '—';
+          let viewDetailsHtml = '<span class="text-muted">—</span>';
 
           if (ledger.transactionType === 'Earned') {
             // Fetch batch details to get month/year
@@ -2092,41 +2093,45 @@
                 if (batch.source === 'Historical') {
                   const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
                   const year = batch.earnedYear || 'Unknown';
-                  detailsHtml = `<strong>Historical Balance</strong><br><small class="text-muted">${month} ${year}</small>`;
+                  particularsHtml = `<strong>Historical Balance</strong><br><small class="text-muted">${month} ${year}</small>`;
                 } else {
                   const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
                   const year = batch.earnedYear || 'Unknown';
-                  detailsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${month} ${year}</small>`;
+                  particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${month} ${year}</small>`;
                 }
               } else {
-                detailsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
+                particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
               }
             } catch (error) {
               console.error('Error fetching batch details:', error);
-              detailsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
+              particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
             }
-            actionHtml = '<span class="text-muted">—</span>';
+            earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
           } else if (ledger.transactionType === 'Used') {
             // CTO application
-            const filingDate = ledger.filingDate ? new Date(ledger.filingDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : '';
             const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
-              ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}`
+              ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}`
               : '';
-            detailsHtml = `<strong>CTO Application</strong><br><small class="text-muted">Filed: ${filingDate}<br>Dates: ${dateRange}</small>`;
-            actionHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
+            particularsHtml = `<strong>CTO Application</strong><br><small class="text-muted">${dateRange}</small>`;
+            usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
+            viewDetailsHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
           } else {
-            detailsHtml = ledger.remarks || ledger.referenceId;
-            actionHtml = '<span class="text-muted">—</span>';
+            particularsHtml = ledger.remarks || ledger.referenceId;
+            if (ledger.hoursChange >= 0) {
+              earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
+            } else {
+              usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
+            }
           }
 
           rows.push(`
             <tr>
               <td>${date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</td>
-              <td><span class="badge ${ledger.transactionType === 'Earned' ? 'bg-success' : 'bg-danger'}">${ledger.transactionType}</span></td>
-              <td>${detailsHtml}</td>
-              <td class="${hoursClass}"><strong>${ledger.hoursChange >= 0 ? '+' : ''}${ledger.hoursChange.toFixed(2)}</strong> hrs</td>
-              <td><strong>${ledger.balanceAfter.toFixed(2)}</strong> hrs</td>
-              <td>${actionHtml}</td>
+              <td>${particularsHtml}</td>
+              <td class="text-end">${earnedHtml}</td>
+              <td class="text-end">${usedHtml}</td>
+              <td class="text-end"><strong>${ledger.balanceAfter.toFixed(2)}</strong></td>
+              <td class="text-center">${viewDetailsHtml}</td>
             </tr>
           `);
         }
