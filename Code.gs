@@ -1677,12 +1677,41 @@ function logCto_SERVER(data) {
       availableBalance += Number(batch.remainingHours || 0);
     }
 
+    // Sort batches by earned month/year (TRUE FIFO - oldest earned first)
     batches.sort((a, b) => {
-      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
-      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
-      return dateA - dateB;
+      // Get year and month for batch A
+      let yearA = a.data.earnedYear || 9999;
+      let monthA = a.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearA === 9999 && a.data.monthYear) {
+        const parts = a.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearA = parseInt(parts[0]);
+          monthA = parseInt(parts[1]);
+        }
+      }
+
+      // Get year and month for batch B
+      let yearB = b.data.earnedYear || 9999;
+      let monthB = b.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearB === 9999 && b.data.monthYear) {
+        const parts = b.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearB = parseInt(parts[0]);
+          monthB = parseInt(parts[1]);
+        }
+      }
+
+      // Sort by year first, then by month
+      if (yearA !== yearB) {
+        return yearA - yearB;
+      }
+      return monthA - monthB;
     });
-    
+
     if (hoursUsed > availableBalance) {
       return {
         success: false,
@@ -1721,11 +1750,33 @@ function logCto_SERVER(data) {
       const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
       if (batchDoc && batchDoc.obj) {
         const batchData = batchDoc.obj;
-        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+
+        // Get month and year from batch data
+        let month = 'Unknown';
+        let year = 'Unknown';
+
+        if (batchData.earnedMonth && batchData.earnedYear) {
+          // Use earnedMonth and earnedYear fields
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          month = monthNames[batchData.earnedMonth - 1] || 'Unknown';
+          year = batchData.earnedYear;
+        } else if (batchData.monthYear) {
+          // Parse from monthYear format (e.g., "2024-10")
+          const parts = batchData.monthYear.split('-');
+          if (parts.length === 2) {
+            year = parseInt(parts[0]);
+            const monthIdx = parseInt(parts[1]) - 1;
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            month = monthNames[monthIdx] || 'Unknown';
+          }
+        }
+
         batchInfo.push({
           hours: usage.hoursUsed,
-          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
-          year: certDate ? certDate.getFullYear() : 'Unknown'
+          month: month,
+          year: year
         });
       }
 
@@ -2002,11 +2053,39 @@ function updateCto_SERVER(data) {
       batches.push({ id: batchId, data: batch });
     }
 
-    // Sort batches by expiry date (FIFO - oldest first)
+    // Sort batches by earned month/year (TRUE FIFO - oldest earned first)
     batches.sort((a, b) => {
-      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
-      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
-      return dateA - dateB;
+      // Get year and month for batch A
+      let yearA = a.data.earnedYear || 9999;
+      let monthA = a.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearA === 9999 && a.data.monthYear) {
+        const parts = a.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearA = parseInt(parts[0]);
+          monthA = parseInt(parts[1]);
+        }
+      }
+
+      // Get year and month for batch B
+      let yearB = b.data.earnedYear || 9999;
+      let monthB = b.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearB === 9999 && b.data.monthYear) {
+        const parts = b.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearB = parseInt(parts[0]);
+          monthB = parseInt(parts[1]);
+        }
+      }
+
+      // Sort by year first, then by month
+      if (yearA !== yearB) {
+        return yearA - yearB;
+      }
+      return monthA - monthB;
     });
 
     // Restore hours to batches
@@ -2045,11 +2124,39 @@ function updateCto_SERVER(data) {
       }
     }
 
-    // Sort active batches by expiry date again
+    // Sort active batches by earned month/year (TRUE FIFO - oldest earned first)
     activeBatches.sort((a, b) => {
-      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
-      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
-      return dateA - dateB;
+      // Get year and month for batch A
+      let yearA = a.data.earnedYear || 9999;
+      let monthA = a.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearA === 9999 && a.data.monthYear) {
+        const parts = a.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearA = parseInt(parts[0]);
+          monthA = parseInt(parts[1]);
+        }
+      }
+
+      // Get year and month for batch B
+      let yearB = b.data.earnedYear || 9999;
+      let monthB = b.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearB === 9999 && b.data.monthYear) {
+        const parts = b.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearB = parseInt(parts[0]);
+          monthB = parseInt(parts[1]);
+        }
+      }
+
+      // Sort by year first, then by month
+      if (yearA !== yearB) {
+        return yearA - yearB;
+      }
+      return monthA - monthB;
     });
 
     if (newHoursUsed > availableBalance) {
@@ -2090,11 +2197,33 @@ function updateCto_SERVER(data) {
       const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
       if (batchDoc && batchDoc.obj) {
         const batchData = batchDoc.obj;
-        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+
+        // Get month and year from batch data
+        let month = 'Unknown';
+        let year = 'Unknown';
+
+        if (batchData.earnedMonth && batchData.earnedYear) {
+          // Use earnedMonth and earnedYear fields
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          month = monthNames[batchData.earnedMonth - 1] || 'Unknown';
+          year = batchData.earnedYear;
+        } else if (batchData.monthYear) {
+          // Parse from monthYear format (e.g., "2024-10")
+          const parts = batchData.monthYear.split('-');
+          if (parts.length === 2) {
+            year = parseInt(parts[0]);
+            const monthIdx = parseInt(parts[1]) - 1;
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            month = monthNames[monthIdx] || 'Unknown';
+          }
+        }
+
         batchInfo.push({
           hours: usage.hoursUsed,
-          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
-          year: certDate ? certDate.getFullYear() : 'Unknown'
+          month: month,
+          year: year
         });
       }
 
@@ -2191,11 +2320,39 @@ function cancelCto_SERVER(ledgerId, reason) {
       batches.push({ id: batchId, data: batch });
     }
 
-    // Sort batches by expiry date (FIFO - oldest first)
+    // Sort batches by earned month/year (TRUE FIFO - oldest earned first)
     batches.sort((a, b) => {
-      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
-      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
-      return dateA - dateB;
+      // Get year and month for batch A
+      let yearA = a.data.earnedYear || 9999;
+      let monthA = a.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearA === 9999 && a.data.monthYear) {
+        const parts = a.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearA = parseInt(parts[0]);
+          monthA = parseInt(parts[1]);
+        }
+      }
+
+      // Get year and month for batch B
+      let yearB = b.data.earnedYear || 9999;
+      let monthB = b.data.earnedMonth || 12;
+
+      // If not present, try parsing from monthYear field
+      if (yearB === 9999 && b.data.monthYear) {
+        const parts = b.data.monthYear.split('-');
+        if (parts.length === 2) {
+          yearB = parseInt(parts[0]);
+          monthB = parseInt(parts[1]);
+        }
+      }
+
+      // Sort by year first, then by month
+      if (yearA !== yearB) {
+        return yearA - yearB;
+      }
+      return monthA - monthB;
     });
 
     // Restore hours to batches (FIFO)
