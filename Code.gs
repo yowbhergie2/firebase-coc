@@ -1108,6 +1108,8 @@ function getCertificates_SERVER(filters) {
         validUntil: cert.validUntil,
         pdfUrl: cert.pdfUrl || null,
         pdfId: cert.pdfId || null,
+        summaryPdfUrl: cert.summaryPdfUrl || null,
+        summaryPdfId: cert.summaryPdfId || null,
         status: status,
         createdAt: cert.createdAt,
         createdBy: cert.createdBy
@@ -1729,6 +1731,131 @@ function logCto_SERVER(data) {
     };
     
   } catch (error) {
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Get all CTO applications from ledger
+function getCtoApplications_SERVER() {
+  try {
+    const db = getFirestore();
+
+    // Get all ledger entries with transaction type 'Used'
+    const allLedger = db.getDocuments('ledger');
+    const ctoApplications = [];
+
+    // Get all employees for name lookup
+    const allEmployees = db.getDocuments('employees');
+    const employeeMap = {};
+    for (let i = 0; i < allEmployees.length; i++) {
+      const emp = allEmployees[i].obj;
+      if (emp) {
+        employeeMap[emp.employeeId] = `${emp.firstName} ${emp.lastName}`;
+      }
+    }
+
+    for (let i = 0; i < allLedger.length; i++) {
+      const ledger = allLedger[i].obj;
+      if (ledger && ledger.transactionType === 'Used') {
+        ctoApplications.push({
+          ledgerId: ledger.ledgerId,
+          employeeId: ledger.employeeId,
+          employeeName: employeeMap[ledger.employeeId] || 'Unknown',
+          filingDate: ledger.filingDate || ledger.transactionDate,
+          inclusiveDateFrom: ledger.inclusiveDateFrom || ledger.transactionDate,
+          inclusiveDateTo: ledger.inclusiveDateTo || ledger.transactionDate,
+          hoursChange: ledger.hoursChange,
+          balanceAfter: ledger.balanceAfter,
+          remarks: ledger.remarks,
+          createdAt: ledger.createdAt
+        });
+      }
+    }
+
+    // Sort by filing date (newest first)
+    ctoApplications.sort((a, b) => new Date(b.filingDate) - new Date(a.filingDate));
+
+    return {
+      success: true,
+      applications: ctoApplications
+    };
+
+  } catch (error) {
+    Logger.log('Error getting CTO applications: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Get CTO calendar for a specific month/year
+function getCtoCalendar_SERVER(data) {
+  try {
+    const db = getFirestore();
+
+    const month = data.month; // 0-11
+    const year = data.year;
+
+    // Get all ledger entries with transaction type 'Used'
+    const allLedger = db.getDocuments('ledger');
+
+    // Get all employees for name lookup
+    const allEmployees = db.getDocuments('employees');
+    const employeeMap = {};
+    for (let i = 0; i < allEmployees.length; i++) {
+      const emp = allEmployees[i].obj;
+      if (emp) {
+        employeeMap[emp.employeeId] = `${emp.firstName} ${emp.lastName}`;
+      }
+    }
+
+    const ctosByDate = {};
+    let totalApplications = 0;
+
+    for (let i = 0; i < allLedger.length; i++) {
+      const ledger = allLedger[i].obj;
+      if (ledger && ledger.transactionType === 'Used' && ledger.inclusiveDateFrom && ledger.inclusiveDateTo) {
+        const dateFrom = new Date(ledger.inclusiveDateFrom);
+        const dateTo = new Date(ledger.inclusiveDateTo);
+
+        // Check if any date in the inclusive range falls within the selected month/year
+        const currentDate = new Date(dateFrom);
+        while (currentDate <= dateTo) {
+          if (currentDate.getMonth() === month && currentDate.getFullYear() === year) {
+            const dateStr = Utilities.formatDate(currentDate, 'GMT', 'yyyy-MM-dd');
+
+            if (!ctosByDate[dateStr]) {
+              ctosByDate[dateStr] = [];
+            }
+
+            ctosByDate[dateStr].push({
+              employeeName: employeeMap[ledger.employeeId] || 'Unknown',
+              hoursUsed: Math.abs(ledger.hoursChange)
+            });
+
+            // Only count once per application
+            if (currentDate.getTime() === dateFrom.getTime()) {
+              totalApplications++;
+            }
+          }
+
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      ctosByDate: ctosByDate,
+      totalApplications: totalApplications
+    };
+
+  } catch (error) {
+    Logger.log('Error getting CTO calendar: ' + error.toString());
     return {
       success: false,
       error: error.toString()

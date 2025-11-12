@@ -1938,11 +1938,21 @@
               ? '<span class="badge bg-success">Active</span>'
               : '<span class="badge bg-secondary">Expired</span>';
 
-            const pdfButton = cert.pdfUrl
-              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary" title="View PDF">
-                   <i class="bi bi-file-pdf"></i>
+            // Certificate PDF button
+            const certPdfButton = cert.pdfUrl
+              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary me-1" title="Certificate PDF">
+                   <i class="bi bi-file-pdf"></i> Cert
                  </a>`
-              : '<span class="text-muted">No PDF</span>';
+              : '<span class="text-muted small">No Cert</span>';
+
+            // Summary PDF button
+            const summaryPdfButton = cert.summaryPdfUrl
+              ? `<a href="${cert.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success" title="Overtime Summary PDF">
+                   <i class="bi bi-file-pdf"></i> Summary
+                 </a>`
+              : '<span class="text-muted small">No Summary</span>';
+
+            const pdfButtons = `${certPdfButton} ${summaryPdfButton}`;
 
             return `
               <tr>
@@ -1953,7 +1963,7 @@
                 <td>${issuanceDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                 <td>${validUntilDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                 <td>${statusBadge}</td>
-                <td>${pdfButton}</td>
+                <td>${pdfButtons}</td>
               </tr>
             `;
           }).join('');
@@ -3603,6 +3613,151 @@
         spinner.classList.add('d-none');
       }
     });
+
+    // Initialize CTO Calendar year dropdown
+    (function() {
+      const currentYear = new Date().getFullYear();
+      const yearSelect = document.getElementById('cto-calendar-year');
+      if (yearSelect) {
+        for (let i = 0; i < 3; i++) {
+          const year = currentYear - i;
+          const option = document.createElement('option');
+          option.value = year;
+          option.textContent = year;
+          if (i === 0) option.selected = true;
+          yearSelect.appendChild(option);
+        }
+        // Set current month
+        const monthSelect = document.getElementById('cto-calendar-month');
+        if (monthSelect) {
+          monthSelect.value = new Date().getMonth();
+        }
+      }
+    })();
+
+    // Load CTO Applications (Tab 2)
+    window.loadCtoApplications = async function() {
+      const loadingDiv = document.getElementById('cto-list-loading');
+      const tbody = document.getElementById('ctoApplicationsTableBody');
+
+      try {
+        loadingDiv.style.display = 'block';
+        tbody.innerHTML = '';
+
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .getCtoApplications_SERVER();
+        });
+
+        loadingDiv.style.display = 'none';
+
+        if (result.success && result.applications.length > 0) {
+          tbody.innerHTML = result.applications.map(app => {
+            const filingDate = new Date(app.filingDate);
+            const dateFrom = new Date(app.inclusiveDateFrom);
+            const dateTo = new Date(app.inclusiveDateTo);
+
+            return `
+              <tr>
+                <td>${filingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                <td>${app.employeeName}</td>
+                <td>${dateFrom.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${dateTo.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                <td><strong class="text-danger">${Math.abs(app.hoursChange).toFixed(1)}</strong> hrs</td>
+                <td><strong class="text-primary">${app.balanceAfter.toFixed(1)}</strong> hrs</td>
+                <td>${app.remarks || '-'}</td>
+              </tr>
+            `;
+          }).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center">No CTO applications found</td></tr>';
+        }
+      } catch (error) {
+        loadingDiv.style.display = 'none';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading applications</td></tr>';
+        Modal.error('Error', 'Failed to load CTO applications: ' + error);
+      }
+    };
+
+    // Load CTO Calendar (Tab 3)
+    window.loadCtoCalendar = async function() {
+      const loadingDiv = document.getElementById('cto-calendar-loading');
+      const container = document.getElementById('cto-calendar-container');
+      const month = parseInt(document.getElementById('cto-calendar-month').value);
+      const year = parseInt(document.getElementById('cto-calendar-year').value);
+
+      try {
+        loadingDiv.style.display = 'block';
+        container.innerHTML = '';
+
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .getCtoCalendar_SERVER({ month, year });
+        });
+
+        loadingDiv.style.display = 'none';
+
+        if (result.success) {
+          // Generate calendar
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+
+          let html = `<h5 class="mb-3">${monthNames[month]} ${year}</h5>`;
+          html += '<div class="table-responsive"><table class="table table-bordered table-sm">';
+          html += '<thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead><tbody>';
+
+          const firstDay = new Date(year, month, 1).getDay();
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+          let day = 1;
+          for (let i = 0; i < 6; i++) {
+            if (day > daysInMonth) break;
+            html += '<tr>';
+            for (let j = 0; j < 7; j++) {
+              if ((i === 0 && j < firstDay) || day > daysInMonth) {
+                html += '<td class="text-muted"></td>';
+              } else {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const ctos = result.ctosByDate[dateStr] || [];
+
+                let cellClass = '';
+                let cellContent = `<div class="fw-bold">${day}</div>`;
+
+                if (ctos.length > 0) {
+                  cellClass = 'bg-info bg-opacity-10';
+                  cellContent += '<div class="small">';
+                  ctos.forEach(cto => {
+                    cellContent += `<div class="badge bg-primary me-1">${cto.employeeName}</div>`;
+                  });
+                  cellContent += '</div>';
+                }
+
+                html += `<td class="${cellClass}" style="vertical-align: top; min-height: 80px;">${cellContent}</td>`;
+                day++;
+              }
+            }
+            html += '</tr>';
+          }
+
+          html += '</tbody></table></div>';
+
+          if (result.totalApplications > 0) {
+            html += `<div class="alert alert-info mt-3">Total CTOs in ${monthNames[month]}: <strong>${result.totalApplications}</strong></div>`;
+          }
+
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<div class="alert alert-warning">No data available</div>';
+        }
+      } catch (error) {
+        loadingDiv.style.display = 'none';
+        container.innerHTML = '<div class="alert alert-danger">Error loading calendar</div>';
+        Modal.error('Error', 'Failed to load CTO calendar: ' + error);
+      }
+    };
 
     document.getElementById('historicalForm').addEventListener('submit', async (e) => {
       e.preventDefault();

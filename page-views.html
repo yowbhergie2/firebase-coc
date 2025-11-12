@@ -589,50 +589,161 @@
     </div>
 
     <div id="page-log-cto" class="page-view">
-      <h2 class="page-title">Log CTO (Use Credits)</h2>
-      <div class="card">
-        <div class="card-body">
-          <form id="ctoForm">
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label class="form-label">Employee <span class="text-danger">*</span></label>
-                <select class="form-select" id="cto-employee" onchange="showCtoBalance()" required></select>
+      <h2 class="page-title">CTO Application</h2>
+
+      <!-- Tabs Navigation -->
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="cto-log-tab" data-bs-toggle="tab" data-bs-target="#cto-log-content" type="button" role="tab">
+            <i class="bi bi-plus-circle"></i> Log CTO Application
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="cto-list-tab" data-bs-toggle="tab" data-bs-target="#cto-list-content" type="button" role="tab">
+            <i class="bi bi-list-ul"></i> List of CTO Applications
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="cto-calendar-tab" data-bs-toggle="tab" data-bs-target="#cto-calendar-content" type="button" role="tab">
+            <i class="bi bi-calendar3"></i> CTO Calendar
+          </button>
+        </li>
+      </ul>
+
+      <!-- Tabs Content -->
+      <div class="tab-content">
+        <!-- Tab 1: Log CTO Application -->
+        <div class="tab-pane fade show active" id="cto-log-content" role="tabpanel">
+          <div class="card">
+            <div class="card-body">
+              <form id="ctoForm">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Employee <span class="text-danger">*</span></label>
+                    <select class="form-select" id="cto-employee" onchange="showCtoBalance()" required></select>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Date of Filing <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="cto-filing-date" required>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Inclusive Date From <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="cto-date-from" required>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Inclusive Date To <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="cto-date-to" required>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="alert alert-info">
+                    <strong><i class="bi bi-wallet2"></i> Available Balance: <span id="cto-available-balance">0.00</span> hours</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Number of Hours Applied for <span class="text-danger">*</span></label>
+                  <input type="number" class="form-control" id="cto-hours" step="0.5" min="0.5" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Remarks</label>
+                  <textarea class="form-control" id="cto-remarks" rows="2"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" id="cto-submit-btn">
+                  <span class="btn-text"><i class="bi bi-check-circle"></i> Log CTO</span>
+                  <span class="spinner-border spinner-border-sm d-none ms-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: List of CTO Applications -->
+        <div class="tab-pane fade" id="cto-list-content" role="tabpanel">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">CTO Applications</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <button class="btn btn-primary" onclick="loadCtoApplications()">
+                  <i class="bi bi-arrow-clockwise"></i> Load Applications
+                </button>
               </div>
-              <div class="col-md-6 mb-3">
-                <label class="form-label">Date of Filing <span class="text-danger">*</span></label>
-                <input type="date" class="form-control" id="cto-filing-date" required>
+              <div id="cto-list-loading" class="text-center" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading CTO applications...</p>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                  <thead>
+                    <tr>
+                      <th>Filing Date</th>
+                      <th>Employee</th>
+                      <th>Inclusive Dates</th>
+                      <th>Hours Used</th>
+                      <th>Balance After</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ctoApplicationsTableBody">
+                    <tr><td colspan="6" class="text-center">Click "Load Applications" to view CTO applications</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label class="form-label">Inclusive Date From <span class="text-danger">*</span></label>
-                <input type="date" class="form-control" id="cto-date-from" required>
+          </div>
+        </div>
+
+        <!-- Tab 3: CTO Calendar -->
+        <div class="tab-pane fade" id="cto-calendar-content" role="tabpanel">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">CTO Calendar View</h5>
+            </div>
+            <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-md-4">
+                  <label class="form-label">Select Month</label>
+                  <select class="form-select" id="cto-calendar-month">
+                    <option value="0">January</option>
+                    <option value="1">February</option>
+                    <option value="2">March</option>
+                    <option value="3">April</option>
+                    <option value="4">May</option>
+                    <option value="5">June</option>
+                    <option value="6">July</option>
+                    <option value="7">August</option>
+                    <option value="8">September</option>
+                    <option value="9">October</option>
+                    <option value="10">November</option>
+                    <option value="11">December</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Select Year</label>
+                  <select class="form-select" id="cto-calendar-year"></select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                  <button class="btn btn-primary" onclick="loadCtoCalendar()">
+                    <i class="bi bi-calendar3"></i> Load Calendar
+                  </button>
+                </div>
               </div>
-              <div class="col-md-6 mb-3">
-                <label class="form-label">Inclusive Date To <span class="text-danger">*</span></label>
-                <input type="date" class="form-control" id="cto-date-to" required>
+              <div id="cto-calendar-loading" class="text-center" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading calendar...</p>
               </div>
+              <div id="cto-calendar-container"></div>
             </div>
-            <div class="mb-3">
-              <div class="alert alert-info">
-                <strong><i class="bi bi-wallet2"></i> Available Balance: <span id="cto-available-balance">0.00</span> hours</strong>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Number of Hours Applied for <span class="text-danger">*</span></label>
-              <input type="number" class="form-control" id="cto-hours" step="0.5" min="0.5" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Remarks</label>
-              <textarea class="form-control" id="cto-remarks" rows="2"></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary" id="cto-submit-btn">
-              <span class="btn-text"><i class="bi bi-check-circle"></i> Log CTO</span>
-              <span class="spinner-border spinner-border-sm d-none ms-2" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </span>
-            </button>
-          </form>
+          </div>
         </div>
       </div>
     </div>
