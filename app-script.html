@@ -1407,7 +1407,7 @@
 
       // Update help text to show valid range
       const helpText = dateInput.nextElementSibling;
-      helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      helpText.textContent = `Should be from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
       const modal = new bootstrap.Modal(document.getElementById('generateCertModal'));
       modal.show();
@@ -1685,7 +1685,7 @@
 
           // Update help text
           const helpText = document.getElementById('cert-batch-date-help');
-          helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+          helpText.textContent = `Should be from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
         } else {
           // No employees found - show message
           tableSection.style.display = 'none';
@@ -2026,14 +2026,37 @@
     window.loadEmployeeLedger = async function() {
       const employeeId = document.getElementById('ledger-employee').value;
       const tbody = document.getElementById('ledgerTableBody');
+      const exportBtn = document.getElementById('export-ledger-btn');
 
       if (!employeeId) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center">Select an employee</td></tr>';
+        exportBtn.disabled = true;
+        currentLedgerData = [];
+        currentEmployeeName = '';
         return;
       }
 
       // Show loading state
       tbody.innerHTML = '<tr><td colspan="6" class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading transactions...</td></tr>';
+      exportBtn.disabled = true;
+
+      // Get employee name for export
+      try {
+        const employeeDoc = await getDoc(doc(db, 'employees', employeeId));
+        if (employeeDoc.exists()) {
+          const emp = employeeDoc.data();
+          currentEmployeeName = `${emp.firstName} ${emp.lastName}`;
+          if (emp.suffix) {
+            const needsComma = emp.suffix.toLowerCase().includes('jr') || emp.suffix.toLowerCase().includes('sr');
+            currentEmployeeName += needsComma ? `, ${emp.suffix}` : ` ${emp.suffix}`;
+          }
+        } else {
+          currentEmployeeName = employeeId;
+        }
+      } catch (error) {
+        console.error('Error fetching employee:', error);
+        currentEmployeeName = employeeId;
+      }
 
       try {
         const batchesQ = query(
@@ -2068,13 +2091,17 @@
 
             // Build rows with async data fetching
             const rows = [];
+            const exportData = [];
             for (const docSnap of snapshot.docs) {
               const ledger = docSnap.data();
               const date = new Date(ledger.transactionDate);
 
               let particularsHtml = '';
+              let particularsText = '';
               let earnedHtml = '—';
               let usedHtml = '—';
+              let earnedValue = '';
+              let usedValue = '';
               let viewDetailsHtml = '<span class="text-muted">—</span>';
 
               if (ledger.transactionType === 'Earned') {
@@ -2106,15 +2133,18 @@
                       const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
                       const year = batch.earnedYear || 'Unknown';
                       particularsHtml = `<strong>Historical Balance</strong><br><small class="text-muted">${month} ${year}</small>`;
+                      particularsText = `Historical Balance - ${month} ${year}`;
                       viewDetailsHtml = `<button class="btn btn-sm btn-outline-info" onclick="viewHistoricalBalanceDetails('${batchDoc.id}')"><i class="bi bi-eye"></i> View</button>`;
                     } else {
                       const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
                       const year = batch.earnedYear || 'Unknown';
                       particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${month} ${year}</small>`;
+                      particularsText = `COC Earned - ${month} ${year}`;
                       viewDetailsHtml = `<button class="btn btn-sm btn-outline-success" onclick="viewCocEarnedDetails('${batchDoc.id}')"><i class="bi bi-eye"></i> View</button>`;
                     }
                   } else {
                     particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId || 'N/A'}</small>`;
+                    particularsText = `COC Earned - ${ledger.referenceId || 'N/A'}`;
                     // Try to find batch by referenceId for view button
                     if (ledger.referenceId) {
                       viewDetailsHtml = `<button class="btn btn-sm btn-outline-success" onclick="viewCocEarnedDetailsByRef('${ledger.referenceId}', '${employeeId}')"><i class="bi bi-eye"></i> View</button>`;
@@ -2123,28 +2153,44 @@
                 } catch (error) {
                   console.error('Error fetching batch details:', error);
                   particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId || 'N/A'}</small>`;
+                  particularsText = `COC Earned - ${ledger.referenceId || 'N/A'}`;
                   // Try to add view button even on error
                   if (ledger.referenceId) {
                     viewDetailsHtml = `<button class="btn btn-sm btn-outline-success" onclick="viewCocEarnedDetailsByRef('${ledger.referenceId}', '${employeeId}')"><i class="bi bi-eye"></i> View</button>`;
                   }
                 }
                 earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
+                earnedValue = ledger.hoursChange.toFixed(2);
               } else if (ledger.transactionType === 'Used') {
                 // CTO application
                 const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
                   ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}`
                   : '';
                 particularsHtml = `<strong>CTO Application</strong><br><small class="text-muted">${dateRange}</small>`;
+                particularsText = `CTO Application - ${dateRange}`;
                 usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
+                usedValue = Math.abs(ledger.hoursChange).toFixed(2);
                 viewDetailsHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
               } else {
                 particularsHtml = ledger.remarks || ledger.referenceId || 'N/A';
+                particularsText = ledger.remarks || ledger.referenceId || 'N/A';
                 if (ledger.hoursChange >= 0) {
                   earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
+                  earnedValue = ledger.hoursChange.toFixed(2);
                 } else {
                   usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
+                  usedValue = Math.abs(ledger.hoursChange).toFixed(2);
                 }
               }
+
+              // Store data for export
+              exportData.push({
+                date: date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }),
+                particulars: particularsText,
+                earned: earnedValue,
+                used: usedValue,
+                balance: ledger.balanceAfter.toFixed(2)
+              });
 
               rows.push(`
                 <tr>
@@ -2157,6 +2203,10 @@
                 </tr>
               `);
             }
+
+            // Store data for export and enable button
+            currentLedgerData = exportData;
+            exportBtn.disabled = false;
 
             tbody.innerHTML = rows.join('');
           } catch (error) {
@@ -2171,6 +2221,57 @@
         console.error('Error in loadEmployeeLedger:', error);
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading data. Please try again.</td></tr>';
       }
+    };
+
+    // Export ledger to Excel (CSV format)
+    let currentLedgerData = [];
+    let currentEmployeeName = '';
+
+    window.exportLedgerToExcel = function() {
+      const employeeId = document.getElementById('ledger-employee').value;
+      if (!employeeId || currentLedgerData.length === 0) {
+        Modal.error('No Data', 'Please select an employee and ensure ledger data is loaded.');
+        return;
+      }
+
+      // Prepare CSV data
+      const headers = ['Date', 'Particulars', 'Earned (hrs)', 'Used (hrs)', 'Balance (hrs)'];
+      const csvRows = [];
+
+      // Add header
+      csvRows.push(headers.join(','));
+
+      // Add data rows
+      currentLedgerData.forEach(row => {
+        const csvRow = [
+          `"${row.date}"`,
+          `"${row.particulars.replace(/"/g, '""')}"`, // Escape quotes
+          row.earned || '',
+          row.used || '',
+          row.balance
+        ];
+        csvRows.push(csvRow.join(','));
+      });
+
+      // Create CSV blob
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+      // Create download link
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+
+      // Generate filename with employee name and date
+      const today = new Date().toISOString().split('T')[0];
+      const filename = `Employee_Ledger_${currentEmployeeName.replace(/[^a-z0-9]/gi, '_')}_${today}.csv`;
+      link.setAttribute('download', filename);
+
+      // Trigger download
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     };
 
     // Store the current balance listener so we can unsubscribe
