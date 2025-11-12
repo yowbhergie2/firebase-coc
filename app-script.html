@@ -1,7 +1,7 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import { getAuth, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-    import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, setDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
     let db, auth, currentUser;
     let employeesData = [];
@@ -1015,20 +1015,13 @@
         const thirtyDays = new Date(today);
         thirtyDays.setDate(today.getDate() + 30);
 
-        // Query active credit batches expiring within 30 days
+        // Query all active credit batches
         const batchesQ = query(
           collection(db, 'creditBatches'),
-          where('status', '==', 'Active'),
-          where('expiryDate', '<=', thirtyDays.toISOString())
+          where('status', '==', 'Active')
         );
 
         const snapshot = await getDocs(batchesQ);
-
-        if (snapshot.empty) {
-          modalBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No expiring credits found</td></tr>';
-          modalTotal.textContent = '0.0';
-          return;
-        }
 
         // Fetch employee data to get names and offices
         const employeesSnapshot = await getDocs(collection(db, 'employees'));
@@ -1037,26 +1030,36 @@
           employeesMap[doc.id] = doc.data();
         });
 
-        // Build array of expiring batches with employee details
+        // Build array of expiring batches with employee details (filter in memory)
         const expiringBatches = [];
         let totalExpiring = 0;
 
         snapshot.forEach(doc => {
           const batch = doc.data();
-          const employee = employeesMap[batch.employeeId];
           const expiryDate = new Date(batch.expiryDate);
 
-          expiringBatches.push({
-            employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown',
-            office: employee ? employee.office : 'N/A',
-            earnedPeriod: `${getMonthName(batch.earnedMonth)} ${batch.earnedYear}`,
-            expiryDate: expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            expiryDateSort: expiryDate,
-            remainingHours: batch.remainingHours
-          });
+          // Only include batches expiring within 30 days
+          if (expiryDate <= thirtyDays) {
+            const employee = employeesMap[batch.employeeId];
 
-          totalExpiring += batch.remainingHours;
+            expiringBatches.push({
+              employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown',
+              office: employee ? employee.office : 'N/A',
+              earnedPeriod: `${getMonthName(batch.earnedMonth)} ${batch.earnedYear}`,
+              expiryDate: expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+              expiryDateSort: expiryDate,
+              remainingHours: batch.remainingHours
+            });
+
+            totalExpiring += batch.remainingHours;
+          }
         });
+
+        if (expiringBatches.length === 0) {
+          modalBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No expiring credits found</td></tr>';
+          modalTotal.textContent = '0.0';
+          return;
+        }
 
         // Sort by expiry date (earliest first)
         expiringBatches.sort((a, b) => a.expiryDateSort - b.expiryDateSort);
