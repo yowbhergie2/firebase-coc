@@ -4096,73 +4096,82 @@
           });
 
           if (result.success) {
-            const cto = result.application;
+            try {
+              const cto = result.application;
 
-            document.getElementById('cto-ledger-id').value = ledgerId;
-
-            // Ensure employee is in dropdown (for inactive employees or not yet loaded)
-            const employeeSelect = document.getElementById('cto-employee');
-            let optionExists = false;
-            for (let i = 0; i < employeeSelect.options.length; i++) {
-              if (employeeSelect.options[i].value === cto.employeeId) {
-                optionExists = true;
-                break;
+              // First, switch to the Log tab before populating form
+              const logTab = document.getElementById('cto-log-tab');
+              if (logTab) {
+                logTab.click();
               }
+
+              // Scroll to top
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+
+              document.getElementById('cto-ledger-id').value = ledgerId;
+
+              // Ensure employee is in dropdown (for inactive employees or not yet loaded)
+              const employeeSelect = document.getElementById('cto-employee');
+              let optionExists = false;
+              for (let i = 0; i < employeeSelect.options.length; i++) {
+                if (employeeSelect.options[i].value === cto.employeeId) {
+                  optionExists = true;
+                  break;
+                }
+              }
+
+              // Add employee to dropdown if not present
+              if (!optionExists && cto.employeeId) {
+                const option = document.createElement('option');
+                option.value = cto.employeeId;
+                option.textContent = `${cto.employeeName} (${cto.employeeId})`;
+                employeeSelect.appendChild(option);
+              }
+
+              // Now set the value
+              document.getElementById('cto-employee').value = cto.employeeId;
+              document.getElementById('cto-filing-date').value = cto.filingDate.split('T')[0];
+
+              // Enable inclusive date fields
+              document.getElementById('cto-date-from').disabled = false;
+              document.getElementById('cto-date-to').disabled = false;
+
+              document.getElementById('cto-date-from').value = cto.inclusiveDateFrom.split('T')[0];
+              document.getElementById('cto-date-to').value = cto.inclusiveDateTo.split('T')[0];
+
+              // Trigger day breakdown generation
+              generateDayBreakdown();
+
+              // Store original hours FIRST for restore remarks check
+              const originalHours = Math.abs(cto.hoursChange || 0);
+              document.getElementById('cto-original-hours').value = originalHours;
+
+              // Set day selections if dayBreakdown exists
+              if (cto.dayBreakdown) {
+                setTimeout(() => {
+                  Object.keys(cto.dayBreakdown).forEach(date => {
+                    const hours = cto.dayBreakdown[date];
+                    const radio = document.getElementById(hours === 8 ? `whole-${date}` : `half-${date}`);
+                    if (radio) radio.checked = true;
+                  });
+                  calculateCtototalHours();
+                }, 100);
+              }
+
+              // Show balance
+              showCtoBalance();
+
+              // Change button text and show cancel button
+              document.getElementById('cto-submit-text').textContent = 'Update CTO';
+              document.getElementById('cto-cancel-btn').style.display = 'inline-block';
+
+              // Show day breakdown section for editing
+              document.getElementById('cto-day-breakdown-section').style.display = 'block';
+
+            } catch (error) {
+              console.error('Error populating CTO form:', error);
+              Modal.error('Error', 'Failed to populate form: ' + error.message);
             }
-
-            // Add employee to dropdown if not present
-            if (!optionExists && cto.employeeId) {
-              const option = document.createElement('option');
-              option.value = cto.employeeId;
-              option.textContent = `${cto.employeeName} (${cto.employeeId})`;
-              employeeSelect.appendChild(option);
-            }
-
-            // Now set the value
-            document.getElementById('cto-employee').value = cto.employeeId;
-            document.getElementById('cto-filing-date').value = cto.filingDate.split('T')[0];
-
-            // Enable inclusive date fields
-            document.getElementById('cto-date-from').disabled = false;
-            document.getElementById('cto-date-to').disabled = false;
-
-            document.getElementById('cto-date-from').value = cto.inclusiveDateFrom.split('T')[0];
-            document.getElementById('cto-date-to').value = cto.inclusiveDateTo.split('T')[0];
-
-            // Trigger day breakdown generation
-            generateDayBreakdown();
-
-            // Store original hours FIRST for restore remarks check
-            const originalHours = Math.abs(cto.hoursChange || 0);
-            document.getElementById('cto-original-hours').value = originalHours;
-
-            // Set day selections if dayBreakdown exists
-            if (cto.dayBreakdown) {
-              setTimeout(() => {
-                Object.keys(cto.dayBreakdown).forEach(date => {
-                  const hours = cto.dayBreakdown[date];
-                  const radio = document.getElementById(hours === 8 ? `whole-${date}` : `half-${date}`);
-                  if (radio) radio.checked = true;
-                });
-                calculateCtototalHours();
-              }, 100);
-            }
-
-            // Show balance
-            showCtoBalance();
-
-            // Change button text and show cancel button
-            document.getElementById('cto-submit-text').textContent = 'Update CTO';
-            document.getElementById('cto-cancel-btn').style.display = 'inline-block';
-
-            // Show day breakdown section for editing
-            document.getElementById('cto-day-breakdown-section').style.display = 'block';
-
-            // Switch to Log tab
-            document.getElementById('cto-log-tab').click();
-
-            // Scroll to top
-            window.scrollTo({ top: 0, behavior: 'smooth' });
           } else {
             Modal.error('Error', result.error);
           }
