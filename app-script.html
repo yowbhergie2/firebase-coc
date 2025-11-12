@@ -2293,44 +2293,115 @@
         return;
       }
 
-      // Prepare CSV data
+      // Prepare data for Excel
       const headers = ['Date', 'Particulars', 'Earned (hrs)', 'Used (hrs)', 'Balance (hrs)'];
-      const csvRows = [];
+      const data = [];
 
-      // Add header
-      csvRows.push(headers.join(','));
+      // Add employee info row
+      data.push(['Employee Ledger']);
+      data.push([`Employee: ${currentEmployeeName}`]);
+      data.push([`Export Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`]);
+      data.push([]); // Empty row
+
+      // Add header row
+      data.push(headers);
 
       // Add data rows
       currentLedgerData.forEach(row => {
-        const csvRow = [
-          `"${row.date}"`,
-          `"${row.particulars.replace(/"/g, '""')}"`, // Escape quotes
+        data.push([
+          row.date,
+          row.particulars,
           row.earned || '',
           row.used || '',
           row.balance
-        ];
-        csvRows.push(csvRow.join(','));
+        ]);
       });
 
-      // Create CSV blob
-      const csvContent = csvRows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(data);
 
-      // Create download link
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 15 },  // Date
+        { wch: 50 },  // Particulars
+        { wch: 15 },  // Earned
+        { wch: 15 },  // Used
+        { wch: 15 }   // Balance
+      ];
+
+      // Apply styles to header row (row 5, 0-indexed as row 4)
+      const headerRow = 4;
+      const headerCells = ['A5', 'B5', 'C5', 'D5', 'E5'];
+
+      headerCells.forEach(cell => {
+        if (!ws[cell]) ws[cell] = {};
+        ws[cell].s = {
+          font: { name: 'Tahoma', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+          fill: { fgColor: { rgb: '4472C4' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: {
+            top: { style: 'thin', color: { rgb: '000000' } },
+            bottom: { style: 'thin', color: { rgb: '000000' } },
+            left: { style: 'thin', color: { rgb: '000000' } },
+            right: { style: 'thin', color: { rgb: '000000' } }
+          }
+        };
+      });
+
+      // Apply styles to title rows
+      if (ws['A1']) {
+        ws['A1'].s = {
+          font: { name: 'Tahoma', bold: true, sz: 14 },
+          alignment: { horizontal: 'left' }
+        };
+      }
+      if (ws['A2']) {
+        ws['A2'].s = {
+          font: { name: 'Tahoma', sz: 11 },
+          alignment: { horizontal: 'left' }
+        };
+      }
+      if (ws['A3']) {
+        ws['A3'].s = {
+          font: { name: 'Tahoma', sz: 11 },
+          alignment: { horizontal: 'left' }
+        };
+      }
+
+      // Apply Tahoma font and borders to all data rows
+      const lastRow = data.length;
+      for (let row = headerRow + 1; row < lastRow; row++) {
+        ['A', 'B', 'C', 'D', 'E'].forEach(col => {
+          const cell = `${col}${row + 1}`;
+          if (!ws[cell]) ws[cell] = { v: '' };
+          ws[cell].s = {
+            font: { name: 'Tahoma', sz: 10 },
+            alignment: {
+              horizontal: col === 'B' ? 'left' : 'center',
+              vertical: 'center'
+            },
+            border: {
+              top: { style: 'thin', color: { rgb: 'CCCCCC' } },
+              bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+              left: { style: 'thin', color: { rgb: 'CCCCCC' } },
+              right: { style: 'thin', color: { rgb: 'CCCCCC' } }
+            }
+          };
+        });
+      }
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Employee Ledger');
 
       // Generate filename with employee name and date
       const today = new Date().toISOString().split('T')[0];
-      const filename = `Employee_Ledger_${currentEmployeeName.replace(/[^a-z0-9]/gi, '_')}_${today}.csv`;
-      link.setAttribute('download', filename);
+      const filename = `Employee_Ledger_${currentEmployeeName.replace(/[^a-z0-9]/gi, '_')}_${today}.xlsx`;
 
-      // Trigger download
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Write file
+      XLSX.writeFile(wb, filename);
+
+      Modal.success('Export Complete', `Ledger exported successfully as ${filename}`);
     };
 
     // Store the current balance listener so we can unsubscribe
