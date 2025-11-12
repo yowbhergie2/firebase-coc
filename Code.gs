@@ -1752,6 +1752,7 @@ function logCto_SERVER(data) {
       inclusiveDateFrom: dateFrom.toISOString(),
       inclusiveDateTo: dateTo.toISOString(),
       dayBreakdown: data.dayBreakdown || {},
+      deductedFrom: batchInfo, // Store FIFO deduction info
       status: 'Active',
       remarks: data.remarks || `CTO filed on ${filingDate.toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
       createdAt: new Date().toISOString()
@@ -2107,8 +2108,9 @@ function updateCto_SERVER(data) {
 
     const newBalance = availableBalance - newHoursUsed;
 
-    // Update the ledger entry
+    // Update the ledger entry - preserve all original fields
     const updatedLedgerData = {
+      ...oldLedger, // Preserve all original fields
       transactionDate: filingDate.toISOString(),
       hoursChange: -newHoursUsed,
       balanceAfter: newBalance,
@@ -2116,6 +2118,7 @@ function updateCto_SERVER(data) {
       inclusiveDateFrom: dateFrom.toISOString(),
       inclusiveDateTo: dateTo.toISOString(),
       dayBreakdown: data.dayBreakdown || {},
+      deductedFrom: batchInfo, // Store FIFO deduction info
       remarks: data.remarks || `CTO updated on ${new Date().toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
       updatedAt: new Date().toISOString()
     };
@@ -2140,9 +2143,17 @@ function updateCto_SERVER(data) {
 }
 
 // Cancel a CTO application and restore hours
-function cancelCto_SERVER(ledgerId) {
+function cancelCto_SERVER(ledgerId, reason) {
   try {
     const db = getFirestore();
+
+    // Validate reason
+    if (!reason || !reason.trim()) {
+      return {
+        success: false,
+        error: 'Cancellation reason is required'
+      };
+    }
 
     // Get the ledger entry
     const ledgerDoc = db.getDocument('ledger/' + ledgerId);
@@ -2223,7 +2234,8 @@ function cancelCto_SERVER(ledgerId) {
     db.updateDocument('ledger/' + ledgerId, {
       status: 'Cancelled',
       cancelledAt: new Date().toISOString(),
-      cancelledBy: Session.getActiveUser().getEmail()
+      cancelledBy: Session.getActiveUser().getEmail(),
+      cancellationReason: reason.trim()
     });
 
     return {
