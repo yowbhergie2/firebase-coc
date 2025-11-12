@@ -2796,6 +2796,9 @@
       return 'selected day';
     }
 
+    // Debounce timers for date validation (to prevent false duplicates while typing)
+    const dateValidationTimers = new Map();
+
     // On date change - auto-detect day type
     window.onOvertimeDateChange = async function(rowId) {
       const dateInput = document.getElementById(`ot-date-${rowId}`);
@@ -2803,6 +2806,30 @@
       if (!dateInput || !entry) return;
 
       const rawValue = dateInput.value;
+
+      if (!rawValue) {
+        resetOvertimeEntryDate(entry, rowId);
+        calculateOvertimeGrandTotal();
+        updateOvertimeProgress();
+        return;
+      }
+
+      // Clear existing timer for this row
+      if (dateValidationTimers.has(rowId)) {
+        clearTimeout(dateValidationTimers.get(rowId));
+      }
+
+      // Debounce validation to allow user to finish typing (e.g., "11" instead of just "1")
+      const timer = setTimeout(async () => {
+        await validateAndProcessOvertimeDate(rowId, dateInput, entry, rawValue);
+        dateValidationTimers.delete(rowId);
+      }, 400); // Wait 400ms after user stops typing
+
+      dateValidationTimers.set(rowId, timer);
+    };
+
+    // Separated validation logic for debouncing
+    async function validateAndProcessOvertimeDate(rowId, dateInput, entry, rawValue) {
 
       if (!rawValue) {
         resetOvertimeEntryDate(entry, rowId);
@@ -2930,7 +2957,7 @@
       entry.holidayName = holidayName;
 
       calculateOvertimeRow(rowId);
-    };
+    }
 
     // Calculate overtime for a single row
     window.calculateOvertimeRow = function(rowId) {
