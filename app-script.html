@@ -2478,6 +2478,12 @@
         document.getElementById('ot-monthly-progress').style.width = '0%';
         document.getElementById('ot-total-progress').style.width = '0%';
 
+        // Hide spinners
+        const monthlySpinner = document.getElementById('ot-monthly-spinner');
+        const totalSpinner = document.getElementById('ot-total-spinner');
+        if (monthlySpinner) monthlySpinner.classList.add('d-none');
+        if (totalSpinner) totalSpinner.classList.add('d-none');
+
         return;
       }
 
@@ -2487,6 +2493,12 @@
       if (totalSection) totalSection.style.display = 'none';
       if (submitSection) submitSection.style.display = 'none';
       toggleEntryLoading(true);
+
+      // Show spinners while loading
+      const monthlySpinner = document.getElementById('ot-monthly-spinner');
+      const totalSpinner = document.getElementById('ot-total-spinner');
+      if (monthlySpinner) monthlySpinner.classList.remove('d-none');
+      if (totalSpinner) totalSpinner.classList.remove('d-none');
 
       try {
         // Check for certificate or historical balance blocking
@@ -2508,6 +2520,9 @@
           if (totalSection) totalSection.style.display = 'none';
           if (submitSection) submitSection.style.display = 'none';
           hideEntryContent();
+          // Hide spinners
+          if (monthlySpinner) monthlySpinner.classList.add('d-none');
+          if (totalSpinner) totalSpinner.classList.add('d-none');
           return;
         }
 
@@ -2541,6 +2556,10 @@
 
         // Update progress bars
         updateOvertimeProgress();
+
+        // Hide spinners after data is loaded
+        if (monthlySpinner) monthlySpinner.classList.add('d-none');
+        if (totalSpinner) totalSpinner.classList.add('d-none');
 
         // Clear existing entries first
         overtimeEntries = [];
@@ -2659,6 +2678,11 @@
         if (entrySection) entrySection.style.display = 'none';
         if (totalSection) totalSection.style.display = 'none';
         if (submitSection) submitSection.style.display = 'none';
+        // Hide spinners on error
+        const monthlySpinner = document.getElementById('ot-monthly-spinner');
+        const totalSpinner = document.getElementById('ot-total-spinner');
+        if (monthlySpinner) monthlySpinner.classList.add('d-none');
+        if (totalSpinner) totalSpinner.classList.add('d-none');
       }
     };
 
