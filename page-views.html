@@ -401,7 +401,7 @@
               <select class="form-select" id="cert-batch-year" onchange="resetBatchForm()"></select>
             </div>
             <div class="col-md-3 d-flex align-items-end">
-              <button class="btn btn-primary" onclick="loadBatchEmployees()">
+              <button class="btn btn-primary" id="cert-batch-load-btn" onclick="loadBatchEmployees()">
                 <i class="bi bi-search"></i> Load
               </button>
             </div>
@@ -521,14 +521,6 @@
         </div>
       </div>
 
-      <!-- Loading Spinner -->
-      <div id="cert-view-loading" style="display: none;" class="text-center py-4">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Loading...</span>
-        </div>
-        <p class="mt-2 text-muted">Loading certificates...</p>
-      </div>
-
       <!-- Certificates Table -->
       <div class="card">
         <div class="card-body">
@@ -550,6 +542,13 @@
                 <tr><td colspan="8" class="text-center">Select filters and load certificates</td></tr>
               </tbody>
             </table>
+          </div>
+          <!-- Loading Spinner (shown inside table area) -->
+          <div id="cert-view-loading" style="display: none;" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading certificates...</p>
           </div>
         </div>
       </div>
@@ -635,10 +634,16 @@
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Inclusive Date From <span class="text-danger">*</span></label>
                     <input type="date" class="form-control" id="cto-date-from" onchange="generateDayBreakdown()" disabled required>
+                    <div id="cto-date-from-error" class="text-danger small mt-1" style="display: none;">
+                      <i class="bi bi-exclamation-circle"></i> Date of Filing cannot be later than Inclusive Date From
+                    </div>
                   </div>
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Inclusive Date To <span class="text-danger">*</span></label>
                     <input type="date" class="form-control" id="cto-date-to" onchange="generateDayBreakdown()" disabled required>
+                    <div id="cto-date-to-error" class="text-danger small mt-1" style="display: none;">
+                      <i class="bi bi-exclamation-circle"></i> Inclusive Date To cannot be earlier than Inclusive Date From
+                    </div>
                   </div>
                 </div>
 

@@ -1290,8 +1290,11 @@
             .getUncertifiedMonthsByEmployee_SERVER(employeeId);
         });
 
-        // Hide loading spinner
+        // Hide loading spinner and re-enable fields
         loadingDiv.style.display = 'none';
+        document.getElementById('cert-batch-month').disabled = false;
+        document.getElementById('cert-batch-year').disabled = false;
+        document.getElementById('cert-batch-load-btn').disabled = false;
 
         if (result.success && result.months.length > 0) {
           tbody.innerHTML = result.months.map(month => `
@@ -1611,6 +1614,11 @@
       }
 
       try {
+        // Disable month, year, and load button
+        document.getElementById('cert-batch-month').disabled = true;
+        document.getElementById('cert-batch-year').disabled = true;
+        document.getElementById('cert-batch-load-btn').disabled = true;
+
         // Show loading spinner, hide table and message
         loadingDiv.style.display = 'block';
         tableSection.style.display = 'none';
@@ -1623,8 +1631,11 @@
             .getEmployeesByMonthWithUncertified_SERVER(parseInt(month), parseInt(year));
         });
 
-        // Hide loading spinner
+        // Hide loading spinner and re-enable fields
         loadingDiv.style.display = 'none';
+        document.getElementById('cert-batch-month').disabled = false;
+        document.getElementById('cert-batch-year').disabled = false;
+        document.getElementById('cert-batch-load-btn').disabled = false;
 
         if (result.success && result.employees.length > 0) {
           tbody.innerHTML = result.employees.map(emp => `
@@ -3596,6 +3607,16 @@
       const filingDate = document.getElementById('cto-filing-date').value;
       const dateFrom = document.getElementById('cto-date-from').value;
       const dateTo = document.getElementById('cto-date-to').value;
+      const dateFromField = document.getElementById('cto-date-from');
+      const dateFromError = document.getElementById('cto-date-from-error');
+      const dateToField = document.getElementById('cto-date-to');
+      const dateToError = document.getElementById('cto-date-to-error');
+
+      // Clear previous error states
+      dateFromField.classList.remove('is-invalid');
+      dateFromError.style.display = 'none';
+      dateToField.classList.remove('is-invalid');
+      dateToError.style.display = 'none';
 
       if (!dateFrom || !dateTo) {
         document.getElementById('cto-day-breakdown-section').style.display = 'none';
@@ -3608,14 +3629,16 @@
 
       // Validation: Date of Filing should not be later than Inclusive Date From
       if (filing > start) {
-        Modal.error('Invalid Dates', 'Date of Filing cannot be later than Inclusive Date From');
+        dateFromField.classList.add('is-invalid');
+        dateFromError.style.display = 'block';
         document.getElementById('cto-day-breakdown-section').style.display = 'none';
         return;
       }
 
       // Validation: Inclusive Date To should not be earlier than Inclusive Date From
       if (end < start) {
-        Modal.error('Invalid Dates', 'Inclusive Date To cannot be earlier than Inclusive Date From');
+        dateToField.classList.add('is-invalid');
+        dateToError.style.display = 'block';
         document.getElementById('cto-day-breakdown-section').style.display = 'none';
         return;
       }
@@ -3627,6 +3650,12 @@
         document.getElementById('cto-day-breakdown-section').style.display = 'none';
         return;
       }
+
+      // All validations passed - ensure errors are cleared
+      dateFromField.classList.remove('is-invalid');
+      dateFromError.style.display = 'none';
+      dateToField.classList.remove('is-invalid');
+      dateToError.style.display = 'none';
 
       const content = document.getElementById('cto-day-breakdown-content');
       const days = [];
