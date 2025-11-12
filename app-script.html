@@ -1266,6 +1266,11 @@
     })();
 
     // Tab 1: By Employee - Load uncertified months
+    // Debounce timer to prevent too many rapid calls
+    let loadUncertifiedMonthsTimer = null;
+    let lastLoadedEmployeeId = null;
+    let cachedUncertifiedResult = null;
+
     window.loadUncertifiedMonths = async function() {
       const employeeId = document.getElementById('cert-employee').value;
       const tableSection = document.getElementById('cert-employee-table-section');
@@ -1278,51 +1283,80 @@
         return;
       }
 
-      try {
-        // Show loading spinner
-        loadingDiv.style.display = 'block';
-        tableSection.style.display = 'none';
-
-        const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getUncertifiedMonthsByEmployee_SERVER(employeeId);
-        });
-
-        // Hide loading spinner and re-enable fields
-        loadingDiv.style.display = 'none';
-        document.getElementById('cert-batch-month').disabled = false;
-        document.getElementById('cert-batch-year').disabled = false;
-        document.getElementById('cert-batch-load-btn').disabled = false;
-
-        if (result.success && result.months.length > 0) {
-          tbody.innerHTML = result.months.map(month => `
-            <tr>
-              <td>${certMonthNames[month.month]} ${month.year}</td>
-              <td>${month.entries.length}</td>
-              <td><strong>${month.totalHours.toFixed(1)}</strong> hrs</td>
-              <td>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="viewMonthEntries('${employeeId}', ${month.month}, ${month.year})">
-                  <i class="bi bi-eye"></i> View
-                </button>
-                <button class="btn btn-sm btn-success" onclick="openGenerateCertModal('${employeeId}', ${month.month}, ${month.year}, ${month.totalHours}, ${month.entries.length})">
-                  <i class="bi bi-file-earmark-check"></i> Generate
-                </button>
-              </td>
-            </tr>
-          `).join('');
-          tableSection.style.display = 'block';
-        } else {
-          tbody.innerHTML = '<tr><td colspan="4" class="text-center">No uncertified overtime logs</td></tr>';
-          tableSection.style.display = 'block';
-        }
-
-      } catch (error) {
-        loadingDiv.style.display = 'none';
-        Modal.error('Error', 'Failed to load uncertified months: ' + error);
+      // Use cached result if same employee
+      if (lastLoadedEmployeeId === employeeId && cachedUncertifiedResult) {
+        renderUncertifiedMonths(cachedUncertifiedResult, tbody, tableSection, loadingDiv, employeeId);
+        return;
       }
+
+      // Clear any pending timer
+      if (loadUncertifiedMonthsTimer) {
+        clearTimeout(loadUncertifiedMonthsTimer);
+      }
+
+      // Debounce: wait 300ms before making the call
+      loadUncertifiedMonthsTimer = setTimeout(async () => {
+        try {
+          // Show loading spinner
+          loadingDiv.style.display = 'block';
+          tableSection.style.display = 'none';
+
+          const result = await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .getUncertifiedMonthsByEmployee_SERVER(employeeId);
+          });
+
+          // Cache the result
+          lastLoadedEmployeeId = employeeId;
+          cachedUncertifiedResult = result;
+
+          renderUncertifiedMonths(result, tbody, tableSection, loadingDiv, employeeId);
+
+        } catch (error) {
+          loadingDiv.style.display = 'none';
+
+          // Better error handling for rate limits
+          if (error.message && error.message.includes('429')) {
+            Modal.error('Too Many Requests', 'Please wait a moment and try again. The system is currently rate-limited.');
+          } else {
+            Modal.error('Error', 'Failed to load uncertified months: ' + error);
+          }
+        }
+      }, 300); // 300ms debounce
     };
+
+    // Helper function to render uncertified months
+    function renderUncertifiedMonths(result, tbody, tableSection, loadingDiv, employeeId) {
+      // Hide loading spinner and re-enable fields
+      loadingDiv.style.display = 'none';
+      document.getElementById('cert-batch-month').disabled = false;
+      document.getElementById('cert-batch-year').disabled = false;
+      document.getElementById('cert-batch-load-btn').disabled = false;
+
+      if (result.success && result.months.length > 0) {
+        tbody.innerHTML = result.months.map(month => `
+          <tr>
+            <td>${certMonthNames[month.month]} ${month.year}</td>
+            <td>${month.entries.length}</td>
+            <td><strong>${month.totalHours.toFixed(1)}</strong> hrs</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="viewMonthEntries('${employeeId}', ${month.month}, ${month.year})">
+                <i class="bi bi-eye"></i> View
+              </button>
+              <button class="btn btn-sm btn-success" onclick="openGenerateCertModal('${employeeId}', ${month.month}, ${month.year}, ${month.totalHours}, ${month.entries.length})">
+                <i class="bi bi-file-earmark-check"></i> Generate
+              </button>
+            </td>
+          </tr>
+        `).join('');
+        tableSection.style.display = 'block';
+      } else {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No uncertified overtime logs</td></tr>';
+        tableSection.style.display = 'block';
+      }
+    }
 
     // View entries modal
     window.viewMonthEntries = async function(employeeId, month, year) {
