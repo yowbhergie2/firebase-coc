@@ -5858,6 +5858,13 @@
           if (typeof updateOvertimeContext === 'function') {
             updateOvertimeContext();
           }
+        } else if (page === 'log-cto') {
+          // Activate the "Log CTO Application" tab (default tab)
+          const logCtoTab = document.getElementById('cto-log-tab');
+          if (logCtoTab) {
+            const tab = new bootstrap.Tab(logCtoTab);
+            tab.show();
+          }
         } else if (page === 'view-certificates') {
           // Load certificates with current filters (defaults to All Years)
           if (typeof loadCertificates === 'function') {
