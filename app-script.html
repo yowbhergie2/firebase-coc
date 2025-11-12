@@ -2077,10 +2077,12 @@
         });
 
         // Query ledger with most recent transaction first (DESC order)
+        // Composite index created for: employeeId, transactionDate DESC, createdAt DESC
         const ledgerQ = query(
           collection(db, 'ledger'),
           where('employeeId', '==', employeeId),
-          orderBy('transactionDate', 'desc')
+          orderBy('transactionDate', 'desc'),
+          orderBy('createdAt', 'desc')
         );
 
         onSnapshot(ledgerQ, async (snapshot) => {
