@@ -1716,6 +1716,8 @@ function logCto_SERVER(data) {
       filingDate: filingDate.toISOString(),
       inclusiveDateFrom: dateFrom.toISOString(),
       inclusiveDateTo: dateTo.toISOString(),
+      dayBreakdown: data.dayBreakdown || {},
+      status: 'Active',
       remarks: data.remarks || `CTO filed on ${filingDate.toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
       createdAt: new Date().toISOString()
     };
@@ -1769,6 +1771,8 @@ function getCtoApplications_SERVER() {
           inclusiveDateTo: ledger.inclusiveDateTo || ledger.transactionDate,
           hoursChange: ledger.hoursChange,
           balanceAfter: ledger.balanceAfter,
+          status: ledger.status || 'Active',
+          dayBreakdown: ledger.dayBreakdown || {},
           remarks: ledger.remarks,
           createdAt: ledger.createdAt
         });
@@ -1856,6 +1860,311 @@ function getCtoCalendar_SERVER(data) {
 
   } catch (error) {
     Logger.log('Error getting CTO calendar: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Get a single CTO application for editing
+function getCtoApplication_SERVER(ledgerId) {
+  try {
+    const db = getFirestore();
+
+    // Get the ledger entry
+    const ledgerDoc = db.getDocument('ledger/' + ledgerId);
+    if (!ledgerDoc) {
+      return {
+        success: false,
+        error: 'CTO application not found'
+      };
+    }
+
+    const ledger = ledgerDoc.obj;
+
+    // Get employee details
+    const employeeDoc = db.getDocument('employees/' + ledger.employeeId);
+    const employee = employeeDoc ? employeeDoc.obj : null;
+
+    return {
+      success: true,
+      application: {
+        ledgerId: ledger.ledgerId,
+        employeeId: ledger.employeeId,
+        employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown',
+        filingDate: ledger.filingDate || ledger.transactionDate,
+        inclusiveDateFrom: ledger.inclusiveDateFrom || ledger.transactionDate,
+        inclusiveDateTo: ledger.inclusiveDateTo || ledger.transactionDate,
+        hoursUsed: Math.abs(ledger.hoursChange),
+        dayBreakdown: ledger.dayBreakdown || {},
+        status: ledger.status || 'Active',
+        remarks: ledger.remarks || ''
+      }
+    };
+
+  } catch (error) {
+    Logger.log('Error getting CTO application: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Update an existing CTO application
+function updateCto_SERVER(data) {
+  try {
+    const db = getFirestore();
+
+    // Get the existing ledger entry
+    const ledgerDoc = db.getDocument('ledger/' + data.ledgerId);
+    if (!ledgerDoc) {
+      return {
+        success: false,
+        error: 'CTO application not found'
+      };
+    }
+
+    const oldLedger = ledgerDoc.obj;
+    const oldHoursUsed = Math.abs(oldLedger.hoursChange);
+    const newHoursUsed = parseFloat(data.hoursUsed);
+
+    // Step 1: Restore hours from the old CTO (reverse the original deduction)
+    // We need to restore hours back to credit batches using FIFO
+    const batchDocs = db.getDocuments('creditBatches');
+    const batches = [];
+
+    for (let i = 0; i < batchDocs.length; i++) {
+      const doc = batchDocs[i];
+      const batch = doc.obj;
+      if (!batch || batch.employeeId !== data.employeeId) {
+        continue;
+      }
+
+      const batchId = doc.name.split('/').pop();
+      batches.push({ id: batchId, data: batch });
+    }
+
+    // Sort batches by expiry date (FIFO - oldest first)
+    batches.sort((a, b) => {
+      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
+      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
+      return dateA - dateB;
+    });
+
+    // Restore hours to batches
+    let remainingToRestore = oldHoursUsed;
+    for (let i = 0; i < batches.length && remainingToRestore > 0; i++) {
+      const batch = batches[i];
+      const toRestore = Math.min(remainingToRestore, oldHoursUsed);
+
+      const newRemaining = batch.data.remainingHours + toRestore;
+      const newStatus = newRemaining > 0 ? 'Active' : batch.data.status;
+
+      db.updateDocument('creditBatches/' + batch.id, {
+        remainingHours: newRemaining,
+        status: newStatus
+      });
+
+      remainingToRestore -= toRestore;
+
+      // If we've restored all hours, stop
+      if (remainingToRestore <= 0) break;
+    }
+
+    // Step 2: Deduct new hours (same logic as logCto_SERVER)
+    let availableBalance = 0;
+    const activeBatches = [];
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      // Re-fetch to get updated remaining hours
+      const updatedBatchDoc = db.getDocument('creditBatches/' + batch.id);
+      const updatedBatch = updatedBatchDoc.obj;
+
+      if (updatedBatch.status === 'Active') {
+        activeBatches.push({ id: batch.id, data: updatedBatch });
+        availableBalance += Number(updatedBatch.remainingHours || 0);
+      }
+    }
+
+    // Sort active batches by expiry date again
+    activeBatches.sort((a, b) => {
+      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
+      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
+      return dateA - dateB;
+    });
+
+    if (newHoursUsed > availableBalance) {
+      return {
+        success: false,
+        error: `Insufficient balance. Available: ${availableBalance.toFixed(2)} hours, Requested: ${newHoursUsed.toFixed(2)} hours`
+      };
+    }
+
+    // Deduct new hours
+    let remainingToUse = newHoursUsed;
+    const usedBatches = [];
+
+    for (let i = 0; i < activeBatches.length && remainingToUse > 0; i++) {
+      const batch = activeBatches[i];
+      const available = batch.data.remainingHours;
+      const toUse = Math.min(available, remainingToUse);
+
+      usedBatches.push({
+        batchId: batch.id,
+        hoursUsed: toUse,
+        newRemaining: available - toUse
+      });
+
+      remainingToUse -= toUse;
+    }
+
+    const filingDate = new Date(data.filingDate);
+    const dateFrom = new Date(data.dateFrom);
+    const dateTo = new Date(data.dateTo);
+
+    // Update credit batches with new deductions
+    usedBatches.forEach(usage => {
+      const newStatus = usage.newRemaining === 0 ? 'Depleted' : 'Active';
+
+      db.updateDocument('creditBatches/' + usage.batchId, {
+        remainingHours: usage.newRemaining,
+        status: newStatus,
+        lastUsedDate: filingDate.toISOString(),
+        lastUsedBy: Session.getActiveUser().getEmail()
+      });
+    });
+
+    const newBalance = availableBalance - newHoursUsed;
+
+    // Update the ledger entry
+    const updatedLedgerData = {
+      transactionDate: filingDate.toISOString(),
+      hoursChange: -newHoursUsed,
+      balanceAfter: newBalance,
+      filingDate: filingDate.toISOString(),
+      inclusiveDateFrom: dateFrom.toISOString(),
+      inclusiveDateTo: dateTo.toISOString(),
+      dayBreakdown: data.dayBreakdown || {},
+      remarks: data.remarks || `CTO updated on ${new Date().toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
+      updatedAt: new Date().toISOString()
+    };
+
+    db.updateDocument('ledger/' + data.ledgerId, updatedLedgerData);
+
+    return {
+      success: true,
+      hoursUsed: newHoursUsed,
+      totalEarned: availableBalance,
+      newBalance: newBalance
+    };
+
+  } catch (error) {
+    Logger.log('Error updating CTO: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Cancel a CTO application and restore hours
+function cancelCto_SERVER(ledgerId) {
+  try {
+    const db = getFirestore();
+
+    // Get the ledger entry
+    const ledgerDoc = db.getDocument('ledger/' + ledgerId);
+    if (!ledgerDoc) {
+      return {
+        success: false,
+        error: 'CTO application not found'
+      };
+    }
+
+    const ledger = ledgerDoc.obj;
+
+    // Check if already cancelled
+    if (ledger.status === 'Cancelled') {
+      return {
+        success: false,
+        error: 'CTO application is already cancelled'
+      };
+    }
+
+    const hoursToRestore = Math.abs(ledger.hoursChange);
+
+    // Get all credit batches for the employee
+    const batchDocs = db.getDocuments('creditBatches');
+    const batches = [];
+
+    for (let i = 0; i < batchDocs.length; i++) {
+      const doc = batchDocs[i];
+      const batch = doc.obj;
+      if (!batch || batch.employeeId !== ledger.employeeId) {
+        continue;
+      }
+
+      const batchId = doc.name.split('/').pop();
+      batches.push({ id: batchId, data: batch });
+    }
+
+    // Sort batches by expiry date (FIFO - oldest first)
+    batches.sort((a, b) => {
+      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
+      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
+      return dateA - dateB;
+    });
+
+    // Restore hours to batches (FIFO)
+    let remainingToRestore = hoursToRestore;
+    for (let i = 0; i < batches.length && remainingToRestore > 0; i++) {
+      const batch = batches[i];
+      const toRestore = Math.min(remainingToRestore, hoursToRestore);
+
+      const newRemaining = batch.data.remainingHours + toRestore;
+      const newStatus = newRemaining > 0 ? 'Active' : batch.data.status;
+
+      db.updateDocument('creditBatches/' + batch.id, {
+        remainingHours: newRemaining,
+        status: newStatus
+      });
+
+      remainingToRestore -= toRestore;
+
+      // If we've restored all hours, stop
+      if (remainingToRestore <= 0) break;
+    }
+
+    // Calculate new balance
+    let newBalance = 0;
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      const updatedBatchDoc = db.getDocument('creditBatches/' + batch.id);
+      const updatedBatch = updatedBatchDoc.obj;
+
+      if (updatedBatch.status === 'Active') {
+        newBalance += Number(updatedBatch.remainingHours || 0);
+      }
+    }
+
+    // Update ledger entry to mark as cancelled
+    db.updateDocument('ledger/' + ledgerId, {
+      status: 'Cancelled',
+      cancelledAt: new Date().toISOString(),
+      cancelledBy: Session.getActiveUser().getEmail()
+    });
+
+    return {
+      success: true,
+      hoursRestored: hoursToRestore,
+      newBalance: newBalance
+    };
+
+  } catch (error) {
+    Logger.log('Error cancelling CTO: ' + error.toString());
     return {
       success: false,
       error: error.toString()
