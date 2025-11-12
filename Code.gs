@@ -585,14 +585,16 @@ function generateCertificate_SERVER(data) {
     };
     
     db.createDocument('certificates/' + certificateId, certData);
-    
-    data.selectedLogIds.forEach(logId => {
-      db.updateDocument('overtimeLogs/' + logId, {
+
+    // Update all logs to Certified status (merge with existing data to preserve all fields)
+    logs.forEach(log => {
+      const updateData = Object.assign({}, log, {
         status: 'Certified',
         certificateId: certificateId,
         certifiedAt: issueDate.toISOString(),
         certifiedBy: Session.getActiveUser().getEmail()
       });
+      db.updateDocument('overtimeLogs/' + log.logId, updateData);
     });
     
     const batchData = {
@@ -873,15 +875,16 @@ function generateCOCCertificate_SERVER(data) {
 
     db.createDocument('certificates/' + certificateId, certData);
 
-    // Update all logs to Active status
+    // Update all logs to Active status (merge with existing data to preserve all fields)
     logs.forEach(log => {
-      db.updateDocument('overtimeLogs/' + log.logId, {
+      const updateData = Object.assign({}, log, {
         status: 'Active',
         certificateId: certificateId,
         validUntil: validUntil.toISOString(),
         certifiedAt: new Date().toISOString(),
         certifiedBy: Session.getActiveUser().getEmail()
       });
+      db.updateDocument('overtimeLogs/' + log.logId, updateData);
     });
 
     // Create credit batch

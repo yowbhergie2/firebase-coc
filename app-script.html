@@ -642,13 +642,32 @@
     };
 
     async function checkEmployeeHasOvertimeLogs(employeeId) {
+      const formCard = document.querySelector('#content-add-hist .card-body');
+
       try {
+        // Show loading indicator immediately
+        const loadingHTML = `
+          <div class="alert alert-info hist-check-loading">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            Checking employee overtime history...
+          </div>
+        `;
+        if (formCard && !formCard.querySelector('.hist-check-loading')) {
+          formCard.insertAdjacentHTML('afterbegin', loadingHTML);
+        }
+
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
             .withFailureHandler(reject)
             .checkEmployeeHasOvertimeLogs_SERVER(employeeId);
         });
+
+        // Remove loading indicator
+        const loading = document.querySelector('.hist-check-loading');
+        if (loading) loading.remove();
 
         if (result.hasLogs) {
           // Disable form fields
@@ -666,7 +685,6 @@
               Historical balance cannot be added or modified to prevent data inconsistency.
             </div>
           `;
-          const formCard = document.querySelector('#content-add-hist .card-body');
           if (formCard && !formCard.querySelector('.alert-warning')) {
             formCard.insertAdjacentHTML('afterbegin', warningHTML);
           }
@@ -686,6 +704,11 @@
         return result.hasLogs;
       } catch (error) {
         console.error('Error checking overtime logs:', error);
+
+        // Remove loading indicator on error
+        const loading = document.querySelector('.hist-check-loading');
+        if (loading) loading.remove();
+
         return false;
       }
     }
@@ -3909,6 +3932,11 @@
           if (certEmployeeTab) {
             const tab = new bootstrap.Tab(certEmployeeTab);
             tab.show();
+          }
+        } else if (page === 'log-overtime') {
+          // Refresh overtime context to validate current selection
+          if (typeof updateOvertimeContext === 'function') {
+            updateOvertimeContext();
           }
         }
       });
