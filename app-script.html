@@ -2203,8 +2203,16 @@
                 const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
                   ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}`
                   : '';
-                particularsHtml = `<strong>CTO Application</strong><br><small class="text-muted">${dateRange}</small>`;
-                particularsText = `CTO Application - ${dateRange}`;
+
+                // Check if CTO is cancelled
+                const isCancelled = ledger.status === 'Cancelled';
+                const statusBadge = isCancelled
+                  ? '<span class="badge bg-danger ms-1">CANCELLED</span>'
+                  : '';
+                const cancelledText = isCancelled ? ' (CANCELLED)' : '';
+
+                particularsHtml = `<strong>CTO Application${statusBadge}</strong><br><small class="text-muted">${dateRange}</small>`;
+                particularsText = `CTO Application${cancelledText} - ${dateRange}`;
                 usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
                 usedValue = Math.abs(ledger.hoursChange).toFixed(2);
                 viewDetailsHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
@@ -4284,8 +4292,22 @@
                   ${ledger.remarks ? `<tr><th>Remarks</th><td>${ledger.remarks}</td></tr>` : ''}
                   <tr>
                     <th>Status</th>
-                    <td><span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${ledger.status}</span></td>
+                    <td><span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-danger'}">${ledger.status || 'Active'}</span></td>
                   </tr>
+                  ${ledger.status === 'Cancelled' ? `
+                    <tr>
+                      <th>Cancellation Reason</th>
+                      <td class="text-danger"><strong>${ledger.cancellationReason || 'N/A'}</strong></td>
+                    </tr>
+                    <tr>
+                      <th>Cancelled By</th>
+                      <td>${ledger.cancelledBy || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <th>Cancelled At</th>
+                      <td>${ledger.cancelledAt ? new Date(ledger.cancelledAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'}</td>
+                    </tr>
+                  ` : ''}
                 </tbody>
               </table>
             </div>
