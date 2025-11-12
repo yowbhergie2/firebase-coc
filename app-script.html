@@ -249,12 +249,13 @@
     }
 
     function populateEmployeeDropdowns() {
-      // Regular dropdowns (ledger and CTO)
-      const dropdowns = ['ledger-employee', 'cto-employee'];
+      // Regular dropdowns (ledger, CTO, and CTO list filter)
+      const dropdowns = ['ledger-employee', 'cto-employee', 'cto-list-employee'];
       dropdowns.forEach(id => {
         const select = document.getElementById(id);
         if (select) {
-          select.innerHTML = '<option value="">Select Employee</option>';
+          const placeholder = id === 'cto-list-employee' ? 'All Employees' : 'Select Employee';
+          select.innerHTML = `<option value="">${placeholder}</option>`;
           employeesData.forEach(emp => {
             if (emp.isActive) {
               select.innerHTML += `<option value="${emp.employeeId}">${emp.lastName}, ${emp.firstName} (${emp.employeeId})</option>`;
@@ -1738,7 +1739,15 @@
 
       const employeeIds = Array.from(checkboxes).map(cb => cb.dataset.employeeid);
 
+      const submitBtn = document.getElementById('generate-all-certs-btn');
+      const btnText = submitBtn.querySelector('.btn-text');
+      const spinner = submitBtn.querySelector('.spinner-border');
+
       try {
+        // Show spinner
+        submitBtn.disabled = true;
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
@@ -1884,6 +1893,11 @@
         }
       } catch (error) {
         Modal.error('Error', 'Failed to generate batch certificates: ' + error);
+      } finally {
+        // Hide spinner
+        submitBtn.disabled = false;
+        btnText.classList.remove('d-none');
+        spinner.classList.add('d-none');
       }
     };
 
@@ -1934,34 +1948,47 @@
             const issuanceDate = new Date(cert.dateOfIssuance);
             const validUntilDate = new Date(cert.validUntil);
 
+            // Format dates as mm/dd/yyyy
+            const formatDate = (date) => {
+              const mm = String(date.getMonth() + 1).padStart(2, '0');
+              const dd = String(date.getDate()).padStart(2, '0');
+              const yyyy = date.getFullYear();
+              return `${mm}/${dd}/${yyyy}`;
+            };
+
             const statusBadge = cert.status === 'Active'
               ? '<span class="badge bg-success">Active</span>'
               : '<span class="badge bg-secondary">Expired</span>';
 
             // Certificate PDF button
             const certPdfButton = cert.pdfUrl
-              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary me-1" title="Certificate PDF">
+              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary mb-1" title="Certificate PDF">
                    <i class="bi bi-file-pdf"></i> Cert
                  </a>`
-              : '<span class="text-muted small">No Cert</span>';
+              : '';
 
             // Summary PDF button
             const summaryPdfButton = cert.summaryPdfUrl
-              ? `<a href="${cert.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success" title="Overtime Summary PDF">
+              ? `<a href="${cert.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success mb-1" title="Overtime Summary PDF">
                    <i class="bi bi-file-pdf"></i> Summary
                  </a>`
-              : '<span class="text-muted small">No Summary</span>';
+              : '';
 
-            const pdfButtons = `${certPdfButton} ${summaryPdfButton}`;
+            const pdfButtons = `
+              <div class="d-flex flex-column gap-1">
+                ${certPdfButton}
+                ${summaryPdfButton}
+              </div>
+            `;
 
             return `
               <tr>
-                <td><code>${cert.certificateId}</code></td>
+                <td><code class="small">${cert.certificateId}</code></td>
                 <td>${cert.employeeName}</td>
                 <td>${cert.period}</td>
                 <td><strong>${cert.totalHours.toFixed(1)}</strong> hrs</td>
-                <td>${issuanceDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                <td>${validUntilDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                <td>${formatDate(issuanceDate)}</td>
+                <td>${formatDate(validUntilDate)}</td>
                 <td>${statusBadge}</td>
                 <td>${pdfButtons}</td>
               </tr>
@@ -3544,7 +3571,29 @@
     });
 
     // CTO Day Breakdown Functions
+    // Enable inclusive date fields when filing date is selected
+    window.enableInclusiveDates = function() {
+      const filingDate = document.getElementById('cto-filing-date').value;
+      const dateFromField = document.getElementById('cto-date-from');
+      const dateToField = document.getElementById('cto-date-to');
+
+      if (filingDate) {
+        dateFromField.disabled = false;
+        dateToField.disabled = false;
+        // Set min date for inclusive dates to be >= filing date
+        dateFromField.min = filingDate;
+        dateToField.min = filingDate;
+      } else {
+        dateFromField.disabled = true;
+        dateToField.disabled = true;
+        dateFromField.value = '';
+        dateToField.value = '';
+        document.getElementById('cto-day-breakdown-section').style.display = 'none';
+      }
+    };
+
     window.generateDayBreakdown = function() {
+      const filingDate = document.getElementById('cto-filing-date').value;
       const dateFrom = document.getElementById('cto-date-from').value;
       const dateTo = document.getElementById('cto-date-to').value;
 
@@ -3553,11 +3602,20 @@
         return;
       }
 
+      const filing = new Date(filingDate);
       const start = new Date(dateFrom);
       const end = new Date(dateTo);
 
-      if (start > end) {
-        Modal.error('Invalid Dates', 'Date From cannot be later than Date To');
+      // Validation: Date of Filing should not be later than Inclusive Date From
+      if (filing > start) {
+        Modal.error('Invalid Dates', 'Date of Filing cannot be later than Inclusive Date From');
+        document.getElementById('cto-day-breakdown-section').style.display = 'none';
+        return;
+      }
+
+      // Validation: Inclusive Date To should not be earlier than Inclusive Date From
+      if (end < start) {
+        Modal.error('Invalid Dates', 'Inclusive Date To cannot be earlier than Inclusive Date From');
         document.getElementById('cto-day-breakdown-section').style.display = 'none';
         return;
       }
@@ -3669,9 +3727,13 @@
             document.getElementById('cto-ledger-id').value = ledgerId;
             document.getElementById('cto-employee').value = cto.employeeId;
             document.getElementById('cto-filing-date').value = cto.filingDate.split('T')[0];
+
+            // Enable inclusive date fields
+            document.getElementById('cto-date-from').disabled = false;
+            document.getElementById('cto-date-to').disabled = false;
+
             document.getElementById('cto-date-from').value = cto.inclusiveDateFrom.split('T')[0];
             document.getElementById('cto-date-to').value = cto.inclusiveDateTo.split('T')[0];
-            document.getElementById('cto-remarks').value = cto.remarks || '';
 
             // Trigger day breakdown generation
             generateDayBreakdown();
@@ -3717,6 +3779,9 @@
       document.getElementById('cto-cancel-btn').style.display = 'none';
       document.getElementById('cto-day-breakdown-section').style.display = 'none';
       document.getElementById('cto-available-balance').textContent = '0.00';
+      // Disable inclusive date fields
+      document.getElementById('cto-date-from').disabled = true;
+      document.getElementById('cto-date-to').disabled = true;
     };
 
     window.cancelCtoApplication = function(ledgerId, employeeName, hoursUsed) {
@@ -3751,14 +3816,22 @@
       const ledgerId = document.getElementById('cto-ledger-id').value;
       const isEdit = ledgerId !== '';
 
+      const hoursUsed = parseFloat(document.getElementById('cto-hours').value);
+      const availableBalance = parseFloat(document.getElementById('cto-available-balance').textContent);
+
+      // Validation: Total CTO hours should not exceed available balance
+      if (hoursUsed > availableBalance) {
+        Modal.error('Insufficient Balance', `Total CTO Application (${hoursUsed.toFixed(1)} hours) exceeds your available balance (${availableBalance.toFixed(1)} hours).`);
+        return;
+      }
+
       const data = {
         employeeId: document.getElementById('cto-employee').value,
         filingDate: document.getElementById('cto-filing-date').value,
         dateFrom: document.getElementById('cto-date-from').value,
         dateTo: document.getElementById('cto-date-to').value,
-        hoursUsed: document.getElementById('cto-hours').value,
-        dayBreakdown: getDayBreakdown(),
-        remarks: document.getElementById('cto-remarks').value
+        hoursUsed: hoursUsed,
+        dayBreakdown: getDayBreakdown()
       };
 
       if (isEdit) {
@@ -3862,6 +3935,9 @@
       const loadingDiv = document.getElementById('cto-list-loading');
       const tbody = document.getElementById('ctoApplicationsTableBody');
 
+      const employeeFilter = document.getElementById('cto-list-employee').value;
+      const statusFilter = document.getElementById('cto-list-status').value;
+
       try {
         loadingDiv.style.display = 'block';
         tbody.innerHTML = '';
@@ -3876,45 +3952,59 @@
         loadingDiv.style.display = 'none';
 
         if (result.success && result.applications.length > 0) {
-          tbody.innerHTML = result.applications.map(app => {
-            const filingDate = new Date(app.filingDate);
-            const dateFrom = new Date(app.inclusiveDateFrom);
-            const dateTo = new Date(app.inclusiveDateTo);
-            const status = app.status || 'Active';
-            const statusBadge = status === 'Active'
-              ? '<span class="badge bg-success">Active</span>'
-              : '<span class="badge bg-secondary">Cancelled</span>';
+          // Apply filters
+          let filteredApps = result.applications;
 
-            const actions = status === 'Active'
-              ? `
-                <button class="btn btn-sm btn-outline-primary" onclick="editCtoApplication('${app.ledgerId}')" title="Edit">
-                  <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="cancelCtoApplication('${app.ledgerId}', '${app.employeeName}', ${Math.abs(app.hoursChange)})" title="Cancel">
-                  <i class="bi bi-x-circle"></i>
-                </button>
-              `
-              : '<span class="text-muted">-</span>';
+          if (employeeFilter) {
+            filteredApps = filteredApps.filter(app => app.employeeId === employeeFilter);
+          }
 
-            return `
-              <tr>
-                <td>${filingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                <td>${app.employeeName}</td>
-                <td>${dateFrom.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${dateTo.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                <td><strong class="text-danger">${Math.abs(app.hoursChange).toFixed(1)}</strong> hrs</td>
-                <td><strong class="text-primary">${app.balanceAfter.toFixed(1)}</strong> hrs</td>
-                <td>${app.remarks || '-'}</td>
-                <td>${statusBadge}</td>
-                <td>${actions}</td>
-              </tr>
-            `;
-          }).join('');
+          if (statusFilter) {
+            filteredApps = filteredApps.filter(app => (app.status || 'Active') === statusFilter);
+          }
+
+          if (filteredApps.length > 0) {
+            tbody.innerHTML = filteredApps.map(app => {
+              const filingDate = new Date(app.filingDate);
+              const dateFrom = new Date(app.inclusiveDateFrom);
+              const dateTo = new Date(app.inclusiveDateTo);
+              const status = app.status || 'Active';
+              const statusBadge = status === 'Active'
+                ? '<span class="badge bg-success">Active</span>'
+                : '<span class="badge bg-secondary">Cancelled</span>';
+
+              const actions = status === 'Active'
+                ? `
+                  <button class="btn btn-sm btn-outline-primary" onclick="editCtoApplication('${app.ledgerId}')" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" onclick="cancelCtoApplication('${app.ledgerId}', '${app.employeeName}', ${Math.abs(app.hoursChange)})" title="Cancel">
+                    <i class="bi bi-x-circle"></i>
+                  </button>
+                `
+                : '<span class="text-muted">-</span>';
+
+              return `
+                <tr>
+                  <td>${filingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                  <td>${app.employeeName}</td>
+                  <td>${dateFrom.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${dateTo.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                  <td><strong class="text-danger">${Math.abs(app.hoursChange).toFixed(1)}</strong> hrs</td>
+                  <td><strong class="text-primary">${app.balanceAfter.toFixed(1)}</strong> hrs</td>
+                  <td>${statusBadge}</td>
+                  <td>${actions}</td>
+                </tr>
+              `;
+            }).join('');
+          } else {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No CTO applications match the selected filters</td></tr>';
+          }
         } else {
-          tbody.innerHTML = '<tr><td colspan="8" class="text-center">No CTO applications found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center">No CTO applications found</td></tr>';
         }
       } catch (error) {
         loadingDiv.style.display = 'none';
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading applications</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error loading applications</td></tr>';
         Modal.error('Error', 'Failed to load CTO applications: ' + error);
       }
     };

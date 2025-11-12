@@ -466,8 +466,11 @@
                     <strong>Selected: <span id="cert-batch-selected-count" class="text-primary">0</span> employees</strong>
                     <span class="ms-3">Total: <span id="cert-batch-total-hours" class="text-primary">0.0</span> hours</span>
                   </div>
-                  <button class="btn btn-primary" onclick="generateBatchCertificates()">
-                    <i class="bi bi-file-earmark-check"></i> Generate All Certificates
+                  <button class="btn btn-primary" id="generate-all-certs-btn" onclick="generateBatchCertificates()">
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    <span class="btn-text">
+                      <i class="bi bi-file-earmark-check"></i> Generate All Certificates
+                    </span>
                   </button>
                 </div>
               </div>
@@ -625,17 +628,17 @@
                   </div>
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Date of Filing <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" id="cto-filing-date" required>
+                    <input type="date" class="form-control" id="cto-filing-date" onchange="enableInclusiveDates()" required>
                   </div>
                 </div>
                 <div class="row">
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Inclusive Date From <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" id="cto-date-from" onchange="generateDayBreakdown()" required>
+                    <input type="date" class="form-control" id="cto-date-from" onchange="generateDayBreakdown()" disabled required>
                   </div>
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Inclusive Date To <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" id="cto-date-to" onchange="generateDayBreakdown()" required>
+                    <input type="date" class="form-control" id="cto-date-to" onchange="generateDayBreakdown()" disabled required>
                   </div>
                 </div>
 
@@ -661,10 +664,6 @@
                   </div>
                 </div>
                 <input type="hidden" id="cto-hours" value="0">
-                <div class="mb-3">
-                  <label class="form-label">Remarks</label>
-                  <textarea class="form-control" id="cto-remarks" rows="2"></textarea>
-                </div>
                 <button type="submit" class="btn btn-primary" id="cto-submit-btn">
                   <span class="btn-text"><i class="bi bi-check-circle"></i> <span id="cto-submit-text">Log CTO</span></span>
                   <span class="spinner-border spinner-border-sm d-none ms-2" role="status">
@@ -686,10 +685,28 @@
               <h5 class="mb-0">CTO Applications</h5>
             </div>
             <div class="card-body">
-              <div class="mb-3">
-                <button class="btn btn-primary" onclick="loadCtoApplications()">
-                  <i class="bi bi-arrow-clockwise"></i> Load Applications
-                </button>
+              <!-- Filters -->
+              <div class="row mb-3">
+                <div class="col-md-3">
+                  <label class="form-label">Employee</label>
+                  <select class="form-select" id="cto-list-employee" onchange="loadCtoApplications()">
+                    <option value="">All Employees</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Status</label>
+                  <select class="form-select" id="cto-list-status" onchange="loadCtoApplications()">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">&nbsp;</label>
+                  <button class="btn btn-primary d-block w-100" onclick="loadCtoApplications()">
+                    <i class="bi bi-arrow-clockwise"></i> Load Applications
+                  </button>
+                </div>
               </div>
               <div id="cto-list-loading" class="text-center" style="display: none;">
                 <div class="spinner-border text-primary" role="status">
@@ -706,13 +723,12 @@
                       <th>Inclusive Dates</th>
                       <th>Hours Used</th>
                       <th>Balance After</th>
-                      <th>Remarks</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="ctoApplicationsTableBody">
-                    <tr><td colspan="8" class="text-center">Click "Load Applications" to view CTO applications</td></tr>
+                    <tr><td colspan="7" class="text-center">Select filters and click "Load Applications"</td></tr>
                   </tbody>
                 </table>
               </div>

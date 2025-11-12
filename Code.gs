@@ -738,9 +738,14 @@ function getEmployeesByMonthWithUncertified_SERVER(month, year) {
     for (const empId in employeeLogsMap) {
       const employee = employeeMap[empId];
       if (employee) {
+        let fullName = `${employee.firstName} ${employee.lastName}`;
+        if (employee.suffix) {
+          const needsComma = employee.suffix.toLowerCase().includes('jr') || employee.suffix.toLowerCase().includes('sr');
+          fullName += needsComma ? `, ${employee.suffix}` : ` ${employee.suffix}`;
+        }
         employees.push({
           employeeId: empId,
-          fullName: `${employee.firstName} ${employee.lastName}`,
+          fullName: fullName,
           office: employee.office || 'N/A',
           totalHours: employeeLogsMap[empId].totalHours,
           entriesCount: employeeLogsMap[empId].entries.length
@@ -968,7 +973,12 @@ function generateCOCCertificate_SERVER(data) {
     db.createDocument('ledger/' + ledgerId, ledgerData);
 
     // Get employee full name for response
-    const employeeFullName = `${employee.firstName} ${employee.middleName || ''} ${employee.lastName}`.trim();
+    let employeeFullName = `${employee.firstName} ${employee.lastName}`;
+    if (employee.suffix) {
+      // Add comma for Jr., Sr., etc.
+      const needsComma = employee.suffix.toLowerCase().includes('jr') || employee.suffix.toLowerCase().includes('sr');
+      employeeFullName += needsComma ? `, ${employee.suffix}` : ` ${employee.suffix}`;
+    }
 
     return {
       success: true,
@@ -1250,7 +1260,12 @@ function generateCertificatePDF(data) {
     const signatory = getSignatoryConfig();
 
     // Prepare employee data
-    const employeeName = `${data.employee.firstName} ${data.employee.middleName || ''} ${data.employee.lastName}`.toUpperCase().trim();
+    let employeeName = `${data.employee.firstName} ${data.employee.lastName}`;
+    if (data.employee.suffix) {
+      const needsComma = data.employee.suffix.toLowerCase().includes('jr') || data.employee.suffix.toLowerCase().includes('sr');
+      employeeName += needsComma ? `, ${data.employee.suffix}` : ` ${data.employee.suffix}`;
+    }
+    employeeName = employeeName.toUpperCase().trim();
     const position = (data.employee.position || '').toUpperCase();
     const office = (data.employee.office || '').toUpperCase();
     const totalHours = data.totalHours.toFixed(1);
@@ -1416,7 +1431,12 @@ function generateOvertimeSummaryPDF(data) {
     const tempSheet = ss.insertSheet(tempSheetName);
 
     // Format employee name
-    const employeeName = `${data.employee.firstName} ${data.employee.middleName || ''} ${data.employee.lastName}`.trim();
+    let employeeName = `${data.employee.firstName} ${data.employee.lastName}`;
+    if (data.employee.suffix) {
+      const needsComma = data.employee.suffix.toLowerCase().includes('jr') || data.employee.suffix.toLowerCase().includes('sr');
+      employeeName += needsComma ? `, ${data.employee.suffix}` : ` ${data.employee.suffix}`;
+    }
+    employeeName = employeeName.trim();
     const position = data.employee.position || '';
     const office = data.employee.office || '';
 
@@ -1549,7 +1569,7 @@ function generateOvertimeSummaryPDF(data) {
 
     // Footer note
     tempSheet.getRange(currentRow, 1, 1, 8).merge()
-      .setValue('This summary is automatically generated with the Certificate of Compensatory Time.')
+      .setValue('This summary is automatically generated with the Compensatory Overtime Credit (COC) and Compensatory Time-Off (CTO) Management System.')
       .setFontSize(9)
       .setFontStyle('italic')
       .setHorizontalAlignment('center');
@@ -1770,7 +1790,12 @@ function getCtoApplications_SERVER() {
     for (let i = 0; i < allEmployees.length; i++) {
       const emp = allEmployees[i].obj;
       if (emp) {
-        employeeMap[emp.employeeId] = `${emp.firstName} ${emp.lastName}`;
+        let fullName = `${emp.firstName} ${emp.lastName}`;
+        if (emp.suffix) {
+          const needsComma = emp.suffix.toLowerCase().includes('jr') || emp.suffix.toLowerCase().includes('sr');
+          fullName += needsComma ? `, ${emp.suffix}` : ` ${emp.suffix}`;
+        }
+        employeeMap[emp.employeeId] = fullName;
       }
     }
 
@@ -1828,7 +1853,12 @@ function getCtoCalendar_SERVER(data) {
     for (let i = 0; i < allEmployees.length; i++) {
       const emp = allEmployees[i].obj;
       if (emp) {
-        employeeMap[emp.employeeId] = `${emp.firstName} ${emp.lastName}`;
+        let fullName = `${emp.firstName} ${emp.lastName}`;
+        if (emp.suffix) {
+          const needsComma = emp.suffix.toLowerCase().includes('jr') || emp.suffix.toLowerCase().includes('sr');
+          fullName += needsComma ? `, ${emp.suffix}` : ` ${emp.suffix}`;
+        }
+        employeeMap[emp.employeeId] = fullName;
       }
     }
 
@@ -1902,12 +1932,21 @@ function getCtoApplication_SERVER(ledgerId) {
     const employeeDoc = db.getDocument('employees/' + ledger.employeeId);
     const employee = employeeDoc ? employeeDoc.obj : null;
 
+    let employeeName = 'Unknown';
+    if (employee) {
+      employeeName = `${employee.firstName} ${employee.lastName}`;
+      if (employee.suffix) {
+        const needsComma = employee.suffix.toLowerCase().includes('jr') || employee.suffix.toLowerCase().includes('sr');
+        employeeName += needsComma ? `, ${employee.suffix}` : ` ${employee.suffix}`;
+      }
+    }
+
     return {
       success: true,
       application: {
         ledgerId: ledger.ledgerId,
         employeeId: ledger.employeeId,
-        employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown',
+        employeeName: employeeName,
         filingDate: ledger.filingDate || ledger.transactionDate,
         inclusiveDateFrom: ledger.inclusiveDateFrom || ledger.transactionDate,
         inclusiveDateTo: ledger.inclusiveDateTo || ledger.transactionDate,
