@@ -133,12 +133,12 @@ function checkOvertimeBlocks_SERVER(employeeId, month, year) {
     const monthYearStr = `${year}-${String(month + 1).padStart(2, '0')}`;
 
     // Check for existing certificate for this month/year
-    // Query all certificates for employee and filter by monthYear in code
+    // Query all certificates for employee and filter by month/year in code
     const allCertificatesQuery = db.getDocuments('certificates');
 
     for (let i = 0; i < allCertificatesQuery.length; i++) {
       const cert = allCertificatesQuery[i].obj;
-      if (cert.employeeId === employeeId && cert.monthYear === monthYearStr) {
+      if (cert.employeeId === employeeId && cert.month === month && cert.year === year) {
         return {
           success: false,
           error: 'A certificate already exists for this month. Cannot log overtime.'
@@ -957,9 +957,9 @@ function generateCOCCertificate_SERVER(data) {
       pdfUrl: pdfUrl,
       employeeName: employeeFullName,
       monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
-      // Date format already correct (MMMM d, yyyy) - produces "September 1, 2025"
-      dateOfIssuance: Utilities.formatDate(dateOfIssuance, Session.getScriptTimeZone(), 'MMMM d, yyyy'),
-      validUntil: Utilities.formatDate(validUntil, Session.getScriptTimeZone(), 'MMMM d, yyyy')
+      // Date format: MM/dd/yyyy - produces "09/01/2025"
+      dateOfIssuance: Utilities.formatDate(dateOfIssuance, Session.getScriptTimeZone(), 'MM/dd/yyyy'),
+      validUntil: Utilities.formatDate(validUntil, Session.getScriptTimeZone(), 'MM/dd/yyyy')
     };
 
   } catch (error) {
@@ -1212,9 +1212,9 @@ function generateCertificatePDF(data) {
     const office = (data.employee.office || '').toUpperCase();
     const totalHours = data.totalHours.toFixed(1);
     
-    // Format dates using Asia/Manila timezone
-    const dateIssued = Utilities.formatDate(data.dateOfIssuance, 'Asia/Manila', 'M/d/yyyy');
-    const validUntil = Utilities.formatDate(data.validUntil, 'Asia/Manila', 'M/d/yyyy');
+    // Format dates using Asia/Manila timezone with MM/dd/yyyy format
+    const dateIssued = Utilities.formatDate(data.dateOfIssuance, 'Asia/Manila', 'MM/dd/yyyy');
+    const validUntil = Utilities.formatDate(data.validUntil, 'Asia/Manila', 'MM/dd/yyyy');
 
     // Ensure the sheet has enough columns (at least 6 columns = F)
     const maxColumns = tempSheet.getMaxColumns();
@@ -1228,9 +1228,19 @@ function generateCertificatePDF(data) {
       tempSheet.insertRowsAfter(maxRows, 44 - maxRows);
     }
 
+    // Calculate font size for position based on text length (auto-shrink for long positions)
+    let positionFontSize = 11; // Default font size
+    if (position.length > 35) {
+      positionFontSize = 8;
+    } else if (position.length > 30) {
+      positionFontSize = 9;
+    } else if (position.length > 25) {
+      positionFontSize = 10;
+    }
+
     // Fill in TOP certificate (rows 1-23)
     tempSheet.getRange(4, 5).setValue(employeeName);      // E4: Employee Name
-    tempSheet.getRange(6, 2).setValue(position);          // B6: Position
+    tempSheet.getRange(6, 2).setValue(position).setFontSize(positionFontSize).setWrap(true);  // B6: Position with auto-size
     tempSheet.getRange(6, 6).setValue(office);            // F6: Office
     tempSheet.getRange(9, 2).setValue(totalHours);        // B9: Total Hours
     tempSheet.getRange(15, 6).setValue(signatory.name);   // F15: Signatory Name
@@ -1240,7 +1250,7 @@ function generateCertificatePDF(data) {
 
     // Fill in BOTTOM certificate (rows 24-44, offset by 24 rows)
     tempSheet.getRange(28, 5).setValue(employeeName);     // E28: Employee Name
-    tempSheet.getRange(30, 2).setValue(position);         // B30: Position
+    tempSheet.getRange(30, 2).setValue(position).setFontSize(positionFontSize).setWrap(true);  // B30: Position with auto-size
     tempSheet.getRange(30, 6).setValue(office);           // F30: Office
     tempSheet.getRange(33, 2).setValue(totalHours);       // B33: Total Hours
     tempSheet.getRange(39, 6).setValue(signatory.name);   // F39: Signatory Name
