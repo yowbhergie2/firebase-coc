@@ -2036,7 +2036,7 @@
       onSnapshot(batchesQ, (snapshot) => {
         let balance = 0;
         snapshot.forEach(doc => {
-          balance += doc.data().remainingHours;
+          balance += Number(doc.data().remainingHours || 0);
         });
         document.getElementById('ledger-balance').textContent = balance.toFixed(2);
       });
@@ -2047,28 +2047,91 @@
         orderBy('transactionDate', 'desc')
       );
 
-      onSnapshot(ledgerQ, (snapshot) => {
+      onSnapshot(ledgerQ, async (snapshot) => {
         const tbody = document.getElementById('ledgerTableBody');
         if (snapshot.empty) {
           tbody.innerHTML = '<tr><td colspan="6" class="text-center">No transactions</td></tr>';
           return;
         }
 
-        tbody.innerHTML = snapshot.docs.map(doc => {
-          const ledger = doc.data();
+        // Build rows with async data fetching
+        const rows = [];
+        for (const docSnap of snapshot.docs) {
+          const ledger = docSnap.data();
           const date = new Date(ledger.transactionDate);
           const hoursClass = ledger.hoursChange >= 0 ? 'text-success' : 'text-danger';
-          return `
+
+          let detailsHtml = '';
+          let actionHtml = '';
+
+          if (ledger.transactionType === 'Earned') {
+            // Fetch batch details to get month/year
+            try {
+              let batchDoc;
+              // Try to get batch by referenceId (could be certificateId or batchId)
+              if (ledger.referenceId.startsWith('BATCH_')) {
+                batchDoc = await getDoc(doc(db, 'creditBatches', ledger.referenceId));
+              } else {
+                // Search for batch with this certificateId
+                const batchQ = query(
+                  collection(db, 'creditBatches'),
+                  where('certificateId', '==', ledger.referenceId),
+                  where('employeeId', '==', employeeId)
+                );
+                const batchSnap = await getDocs(batchQ);
+                if (!batchSnap.empty) {
+                  batchDoc = batchSnap.docs[0];
+                }
+              }
+
+              if (batchDoc && batchDoc.exists()) {
+                const batch = batchDoc.data();
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                   'July', 'August', 'September', 'October', 'November', 'December'];
+
+                if (batch.source === 'Historical') {
+                  const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
+                  const year = batch.earnedYear || 'Unknown';
+                  detailsHtml = `<strong>Historical Balance</strong><br><small class="text-muted">${month} ${year}</small>`;
+                } else {
+                  const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
+                  const year = batch.earnedYear || 'Unknown';
+                  detailsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${month} ${year}</small>`;
+                }
+              } else {
+                detailsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
+              }
+            } catch (error) {
+              console.error('Error fetching batch details:', error);
+              detailsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
+            }
+            actionHtml = '<span class="text-muted">—</span>';
+          } else if (ledger.transactionType === 'Used') {
+            // CTO application
+            const filingDate = ledger.filingDate ? new Date(ledger.filingDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : '';
+            const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
+              ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}`
+              : '';
+            detailsHtml = `<strong>CTO Application</strong><br><small class="text-muted">Filed: ${filingDate}<br>Dates: ${dateRange}</small>`;
+            actionHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
+          } else {
+            detailsHtml = ledger.remarks || ledger.referenceId;
+            actionHtml = '<span class="text-muted">—</span>';
+          }
+
+          rows.push(`
             <tr>
               <td>${date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</td>
-              <td><span class="badge bg-info">${ledger.transactionType}</span></td>
-              <td>${ledger.referenceId}</td>
-              <td class="${hoursClass}"><strong>${ledger.hoursChange >= 0 ? '+' : ''}${ledger.hoursChange.toFixed(2)}</strong></td>
-              <td>${ledger.balanceAfter.toFixed(2)}</td>
-              <td>${ledger.remarks}</td>
+              <td><span class="badge ${ledger.transactionType === 'Earned' ? 'bg-success' : 'bg-danger'}">${ledger.transactionType}</span></td>
+              <td>${detailsHtml}</td>
+              <td class="${hoursClass}"><strong>${ledger.hoursChange >= 0 ? '+' : ''}${ledger.hoursChange.toFixed(2)}</strong> hrs</td>
+              <td><strong>${ledger.balanceAfter.toFixed(2)}</strong> hrs</td>
+              <td>${actionHtml}</td>
             </tr>
-          `;
-        }).join('');
+          `);
+        }
+
+        tbody.innerHTML = rows.join('');
       });
     };
 
@@ -3896,6 +3959,94 @@
       // Disable inclusive date fields
       document.getElementById('cto-date-from').disabled = true;
       document.getElementById('cto-date-to').disabled = true;
+    };
+
+    window.viewCtoDetails = async function(ledgerId) {
+      try {
+        // Fetch CTO details from Firestore
+        const ledgerDoc = await getDoc(doc(db, 'ledger', ledgerId));
+
+        if (!ledgerDoc.exists()) {
+          Modal.error('Error', 'CTO application not found');
+          return;
+        }
+
+        const ledger = ledgerDoc.data();
+
+        // Fetch employee details
+        const employeeDoc = await getDoc(doc(db, 'employees', ledger.employeeId));
+        let employeeName = ledger.employeeId;
+        if (employeeDoc.exists()) {
+          const emp = employeeDoc.data();
+          employeeName = `${emp.firstName} ${emp.lastName}`;
+          if (emp.suffix) {
+            const needsComma = emp.suffix.toLowerCase().includes('jr') || emp.suffix.toLowerCase().includes('sr');
+            employeeName += needsComma ? `, ${emp.suffix}` : ` ${emp.suffix}`;
+          }
+        }
+
+        // Build day breakdown HTML
+        let dayBreakdownHtml = '';
+        if (ledger.dayBreakdown && Object.keys(ledger.dayBreakdown).length > 0) {
+          dayBreakdownHtml = '<div class="mt-3"><strong>Day Breakdown:</strong><ul class="mt-2">';
+          Object.keys(ledger.dayBreakdown).sort().forEach(date => {
+            const hours = ledger.dayBreakdown[date];
+            const dateObj = new Date(date);
+            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' });
+            dayBreakdownHtml += `<li>${formattedDate}: <strong>${hours} hours</strong></li>`;
+          });
+          dayBreakdownHtml += '</ul></div>';
+        }
+
+        // Build FIFO deduction info
+        let fifoHtml = '';
+        if (ledger.deductedFrom && ledger.deductedFrom.length > 0) {
+          fifoHtml = '<div class="mt-3"><strong>Deducted From (FIFO):</strong><ul class="mt-2">';
+          ledger.deductedFrom.forEach(deduction => {
+            fifoHtml += `<li>${deduction.month} ${deduction.year}: <strong>${deduction.hours} hours</strong></li>`;
+          });
+          fifoHtml += '</ul></div>';
+        }
+
+        const filingDate = ledger.filingDate ? new Date(ledger.filingDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+        const dateFrom = ledger.inclusiveDateFrom ? new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+        const dateTo = ledger.inclusiveDateTo ? new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+        const hoursUsed = Math.abs(ledger.hoursChange);
+
+        Modal.custom({
+          title: 'CTO Application Details',
+          message: `
+            <div class="text-start">
+              <div class="mb-3">
+                <strong>Employee:</strong> ${employeeName}<br>
+                <strong>Employee ID:</strong> ${ledger.employeeId}
+              </div>
+              <div class="mb-3">
+                <strong>Filing Date:</strong> ${filingDate}<br>
+                <strong>Inclusive Dates:</strong> ${dateFrom} - ${dateTo}<br>
+                <strong>Total Hours:</strong> ${hoursUsed.toFixed(2)} hours
+              </div>
+              ${dayBreakdownHtml}
+              ${fifoHtml}
+              ${ledger.remarks ? `<div class="mt-3"><strong>Remarks:</strong><br>${ledger.remarks}</div>` : ''}
+              <div class="mt-3">
+                <strong>Status:</strong> <span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${ledger.status}</span>
+              </div>
+            </div>
+          `,
+          buttons: [
+            {
+              text: 'Close',
+              class: 'btn-secondary',
+              dismiss: true
+            }
+          ]
+        });
+
+      } catch (error) {
+        console.error('Error viewing CTO details:', error);
+        Modal.error('Error', 'Failed to load CTO details: ' + error.message);
+      }
     };
 
     window.cancelCtoApplication = function(ledgerId, employeeName, hoursUsed) {
