@@ -3388,7 +3388,7 @@
 
     document.getElementById('ctoForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const data = {
         employeeId: document.getElementById('cto-employee').value,
         ctoDate: document.getElementById('cto-date').value,
@@ -3396,7 +3396,16 @@
         remarks: document.getElementById('cto-remarks').value
       };
 
+      const submitBtn = document.getElementById('cto-submit-btn');
+      const btnText = submitBtn.querySelector('.btn-text');
+      const spinner = submitBtn.querySelector('.spinner-border');
+
       try {
+        // Show spinner
+        submitBtn.disabled = true;
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
+
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
@@ -3429,6 +3438,11 @@
         }
       } catch (error) {
         Modal.error('Error', 'Error logging CTO: ' + error);
+      } finally {
+        // Hide spinner
+        submitBtn.disabled = false;
+        btnText.classList.remove('d-none');
+        spinner.classList.add('d-none');
       }
     });
 
@@ -3531,7 +3545,7 @@
 
     document.getElementById('configForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const data = {
         regularDayMultiplier: parseFloat(document.getElementById('config-regular').value),
         restDayMultiplier: parseFloat(document.getElementById('config-restday').value),
@@ -3541,7 +3555,16 @@
         expiryMonths: parseInt(document.getElementById('config-expiry-months').value)
       };
 
+      const submitBtn = document.getElementById('config-submit-btn');
+      const btnText = submitBtn.querySelector('.btn-text');
+      const spinner = submitBtn.querySelector('.spinner-border');
+
       try {
+        // Show spinner
+        submitBtn.disabled = true;
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
+
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
@@ -3556,6 +3579,11 @@
         }
       } catch (error) {
         Modal.error('Error', 'Error saving configuration: ' + error);
+      } finally {
+        // Hide spinner
+        submitBtn.disabled = false;
+        btnText.classList.remove('d-none');
+        spinner.classList.add('d-none');
       }
     });
 
@@ -3769,7 +3797,16 @@
         data.holidayId = holidayId;
       }
 
+      const saveBtn = document.getElementById('saveHolidayBtn');
+      const btnText = saveBtn.querySelector('.btn-text');
+      const spinner = saveBtn.querySelector('.spinner-border');
+
       try {
+        // Show spinner
+        saveBtn.disabled = true;
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
+
         const serverFunction = isEdit ? 'updateHoliday_SERVER' : 'addHoliday_SERVER';
         const result = await new Promise((resolve, reject) => {
           google.script.run
@@ -3787,6 +3824,11 @@
         }
       } catch (error) {
         Modal.error('Error', `Error ${isEdit ? 'updating' : 'adding'} holiday: ` + error);
+      } finally {
+        // Hide spinner
+        saveBtn.disabled = false;
+        btnText.classList.remove('d-none');
+        spinner.classList.add('d-none');
       }
     };
 
@@ -3905,7 +3947,16 @@
       const type = document.getElementById('lib-type').value;
       const name = document.getElementById('lib-name').value;
 
+      const saveBtn = document.getElementById('saveLibraryBtn');
+      const btnText = saveBtn.querySelector('.btn-text');
+      const spinner = saveBtn.querySelector('.spinner-border');
+
       try {
+        // Show spinner
+        saveBtn.disabled = true;
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
+
         const isUpdate = itemId !== '';
         const result = await new Promise((resolve, reject) => {
           if (isUpdate) {
@@ -3931,6 +3982,11 @@
         }
       } catch (error) {
         Modal.error('Error', 'Error saving item: ' + error);
+      } finally {
+        // Hide spinner
+        saveBtn.disabled = false;
+        btnText.classList.remove('d-none');
+        spinner.classList.add('d-none');
       }
     };
 
