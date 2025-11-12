@@ -957,7 +957,7 @@
       const logsQ = query(collection(db, 'overtimeLogs'), where('status', '==', 'Uncertified'));
 
       onSnapshot(batchesQ, (snapshot) => {
-        let totalLiability = 0;
+        let totalCoc = 0;
         let expiringSoon = 0;
         const today = new Date();
         const thirtyDays = new Date(today);
@@ -965,16 +965,16 @@
 
         snapshot.forEach((doc) => {
           const batch = doc.data();
-          totalLiability += batch.remainingHours;
+          totalCoc += batch.remainingHours;
           const expiryDate = new Date(batch.expiryDate);
           if (expiryDate <= thirtyDays) {
             expiringSoon += batch.remainingHours;
           }
         });
 
-        document.getElementById('stat-total-liability').textContent = totalLiability.toFixed(2);
+        document.getElementById('stat-total-coc').textContent = totalCoc.toFixed(2);
         document.getElementById('stat-expiring-soon').textContent = expiringSoon.toFixed(2);
-        
+
         renderAlerts(expiringSoon, snapshot.docs.length);
       });
 
