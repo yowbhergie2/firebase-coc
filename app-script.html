@@ -1941,14 +1941,11 @@
           document.getElementById('cert-batch-valid-until').value = '';
           document.getElementById('cert-batch-table-section').style.display = 'none';
 
-          // Refresh By Employee tab if an employee is selected
+          // ALWAYS refresh By Employee tab if an employee is selected
           const selectedEmployeeId = document.getElementById('cert-employee').value;
           if (selectedEmployeeId) {
-            // Check if any of the batch employees match the selected employee
-            if (employeeIds.includes(selectedEmployeeId)) {
-              // Reload uncertified months for this employee
-              loadUncertifiedMonths();
-            }
+            // Reload uncertified months for this employee
+            loadUncertifiedMonths();
           }
         } else {
           Modal.error('Error', result.error);
@@ -5015,15 +5012,23 @@
 
     // Load CTO Applications (Tab 2)
     window.loadCtoApplications = async function() {
-      const loadingDiv = document.getElementById('cto-list-loading');
       const tbody = document.getElementById('ctoApplicationsTableBody');
 
       const employeeFilter = document.getElementById('cto-list-employee').value;
       const statusFilter = document.getElementById('cto-list-status').value;
 
       try {
-        loadingDiv.style.display = 'block';
-        tbody.innerHTML = '';
+        // Show loading spinner in tbody (table headers remain visible)
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="9" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="mt-2 mb-0">Loading CTO applications...</p>
+            </td>
+          </tr>
+        `;
 
         const result = await new Promise((resolve, reject) => {
           google.script.run
@@ -5031,8 +5036,6 @@
             .withFailureHandler(reject)
             .getCtoApplications_SERVER();
         });
-
-        loadingDiv.style.display = 'none';
 
         if (result.success && result.applications.length > 0) {
           // Apply filters
