@@ -466,8 +466,11 @@
                     <strong>Selected: <span id="cert-batch-selected-count" class="text-primary">0</span> employees</strong>
                     <span class="ms-3">Total: <span id="cert-batch-total-hours" class="text-primary">0.0</span> hours</span>
                   </div>
-                  <button class="btn btn-primary" onclick="generateBatchCertificates()">
-                    <i class="bi bi-file-earmark-check"></i> Generate All Certificates
+                  <button class="btn btn-primary" id="generate-all-certs-btn" onclick="generateBatchCertificates()">
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    <span class="btn-text">
+                      <i class="bi bi-file-earmark-check"></i> Generate All Certificates
+                    </span>
                   </button>
                 </div>
               </div>

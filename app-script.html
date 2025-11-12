@@ -1738,7 +1738,15 @@
 
       const employeeIds = Array.from(checkboxes).map(cb => cb.dataset.employeeid);
 
+      const submitBtn = document.getElementById('generate-all-certs-btn');
+      const btnText = submitBtn.querySelector('.btn-text');
+      const spinner = submitBtn.querySelector('.spinner-border');
+
       try {
+        // Show spinner
+        submitBtn.disabled = true;
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
@@ -1884,6 +1892,11 @@
         }
       } catch (error) {
         Modal.error('Error', 'Failed to generate batch certificates: ' + error);
+      } finally {
+        // Hide spinner
+        submitBtn.disabled = false;
+        btnText.classList.remove('d-none');
+        spinner.classList.add('d-none');
       }
     };
 
