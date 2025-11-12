@@ -1010,6 +1010,9 @@
               <td><span class="badge ${hol.type === 'Regular' ? 'bg-danger' : 'bg-warning'}">${hol.type}</span></td>
               <td>${hol.isRecurring ? 'Yes' : 'No'}</td>
               <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editHoliday('${doc.id}')">
+                  <i class="bi bi-pencil"></i>
+                </button>
                 <button class="btn btn-sm btn-outline-danger" onclick="deleteHoliday('${doc.id}')">
                   <i class="bi bi-trash"></i>
                 </button>
@@ -3612,6 +3615,37 @@
 
     window.resetHolidayForm = function() {
       document.getElementById('holidayForm').reset();
+      document.getElementById('hol-id').value = '';
+      document.getElementById('holidayModalTitle').textContent = 'Add Holiday';
+    };
+
+    window.editHoliday = async function(holidayId) {
+      try {
+        const db = getFirestore();
+        const doc = await getDoc(doc(db, 'holidays', holidayId));
+
+        if (!doc.exists()) {
+          Modal.error('Error', 'Holiday not found');
+          return;
+        }
+
+        const hol = doc.data();
+
+        // Populate form with existing data
+        document.getElementById('hol-id').value = holidayId;
+        document.getElementById('hol-date').value = hol.date;
+        document.getElementById('hol-name').value = hol.name;
+        document.getElementById('hol-type').value = hol.type;
+        document.getElementById('hol-recurring').checked = hol.isRecurring || false;
+
+        // Update modal title
+        document.getElementById('holidayModalTitle').textContent = 'Edit Holiday';
+
+        // Show modal
+        new bootstrap.Modal(document.getElementById('holidayModal')).show();
+      } catch (error) {
+        Modal.error('Error', 'Error loading holiday: ' + error);
+      }
     };
 
     window.saveHoliday = async function() {
@@ -3621,6 +3655,9 @@
         return;
       }
 
+      const holidayId = document.getElementById('hol-id').value;
+      const isEdit = !!holidayId;
+
       const data = {
         date: document.getElementById('hol-date').value,
         name: document.getElementById('hol-name').value,
@@ -3628,23 +3665,28 @@
         isRecurring: document.getElementById('hol-recurring').checked
       };
 
+      if (isEdit) {
+        data.holidayId = holidayId;
+      }
+
       try {
+        const serverFunction = isEdit ? 'updateHoliday_SERVER' : 'addHoliday_SERVER';
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
             .withFailureHandler(reject)
-            .addHoliday_SERVER(data);
+            [serverFunction](data);
         });
 
         if (result.success) {
-          Modal.success('Success!', 'Holiday added successfully!');
+          Modal.success('Success!', `Holiday ${isEdit ? 'updated' : 'added'} successfully!`);
           bootstrap.Modal.getInstance(document.getElementById('holidayModal')).hide();
           form.reset();
         } else {
           Modal.error('Error', result.error);
         }
       } catch (error) {
-        Modal.error('Error', 'Error adding holiday: ' + error);
+        Modal.error('Error', `Error ${isEdit ? 'updating' : 'adding'} holiday: ` + error);
       }
     };
 
