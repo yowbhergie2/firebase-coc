@@ -2072,26 +2072,51 @@
       });
     };
 
+    // Store the current balance listener so we can unsubscribe
+    let ctoBalanceUnsubscribe = null;
+
     window.showCtoBalance = async function() {
       const employeeId = document.getElementById('cto-employee').value;
       if (!employeeId) {
         document.getElementById('cto-available-balance').textContent = '0.00';
+        // Unsubscribe from previous listener if exists
+        if (ctoBalanceUnsubscribe) {
+          ctoBalanceUnsubscribe();
+          ctoBalanceUnsubscribe = null;
+        }
         return;
       }
 
-      const batchesQ = query(
-        collection(db, 'creditBatches'),
-        where('employeeId', '==', employeeId),
-        where('status', '==', 'Active')
-      );
+      try {
+        // Unsubscribe from previous listener if exists
+        if (ctoBalanceUnsubscribe) {
+          ctoBalanceUnsubscribe();
+        }
 
-      onSnapshot(batchesQ, (snapshot) => {
-        let total = 0;
-        snapshot.forEach(doc => {
-          total += doc.data().remainingHours;
-        });
-        document.getElementById('cto-available-balance').textContent = total.toFixed(2);
-      });
+        const batchesQ = query(
+          collection(db, 'creditBatches'),
+          where('employeeId', '==', employeeId),
+          where('status', '==', 'Active')
+        );
+
+        ctoBalanceUnsubscribe = onSnapshot(batchesQ,
+          (snapshot) => {
+            let total = 0;
+            snapshot.forEach(doc => {
+              const data = doc.data();
+              total += Number(data.remainingHours || 0);
+            });
+            document.getElementById('cto-available-balance').textContent = total.toFixed(2);
+          },
+          (error) => {
+            console.error('Error fetching CTO balance:', error);
+            document.getElementById('cto-available-balance').textContent = '0.00';
+          }
+        );
+      } catch (error) {
+        console.error('Error setting up CTO balance listener:', error);
+        document.getElementById('cto-available-balance').textContent = '0.00';
+      }
     };
 
     window.calculateHistoricalRemaining = function() {
@@ -3785,6 +3810,26 @@
             const cto = result.application;
 
             document.getElementById('cto-ledger-id').value = ledgerId;
+
+            // Ensure employee is in dropdown (for inactive employees or not yet loaded)
+            const employeeSelect = document.getElementById('cto-employee');
+            let optionExists = false;
+            for (let i = 0; i < employeeSelect.options.length; i++) {
+              if (employeeSelect.options[i].value === cto.employeeId) {
+                optionExists = true;
+                break;
+              }
+            }
+
+            // Add employee to dropdown if not present
+            if (!optionExists && cto.employeeId) {
+              const option = document.createElement('option');
+              option.value = cto.employeeId;
+              option.textContent = `${cto.employeeName} (${cto.employeeId})`;
+              employeeSelect.appendChild(option);
+            }
+
+            // Now set the value
             document.getElementById('cto-employee').value = cto.employeeId;
             document.getElementById('cto-filing-date').value = cto.filingDate.split('T')[0];
 

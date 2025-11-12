@@ -1780,8 +1780,13 @@ function logCto_SERVER(data) {
         });
       }
 
+      // Get current batch to calculate new usedHours
+      const currentBatchDoc = db.getDocument('creditBatches/' + usage.batchId);
+      const currentUsedHours = (currentBatchDoc && currentBatchDoc.obj && currentBatchDoc.obj.usedHours) || 0;
+
       db.updateDocument('creditBatches/' + usage.batchId, {
         remainingHours: usage.newRemaining,
+        usedHours: currentUsedHours + usage.hoursUsed,
         status: newStatus,
         lastUsedDate: filingDate.toISOString(),
         lastUsedBy: Session.getActiveUser().getEmail()
@@ -2097,8 +2102,13 @@ function updateCto_SERVER(data) {
       const newRemaining = batch.data.remainingHours + toRestore;
       const newStatus = newRemaining > 0 ? 'Active' : batch.data.status;
 
+      // Decrease usedHours when restoring
+      const currentUsedHours = batch.data.usedHours || 0;
+      const newUsedHours = Math.max(0, currentUsedHours - toRestore);
+
       db.updateDocument('creditBatches/' + batch.id, {
         remainingHours: newRemaining,
+        usedHours: newUsedHours,
         status: newStatus
       });
 
@@ -2227,8 +2237,13 @@ function updateCto_SERVER(data) {
         });
       }
 
+      // Get current batch to calculate new usedHours (after restoration)
+      const currentBatchDoc = db.getDocument('creditBatches/' + usage.batchId);
+      const currentUsedHours = (currentBatchDoc && currentBatchDoc.obj && currentBatchDoc.obj.usedHours) || 0;
+
       db.updateDocument('creditBatches/' + usage.batchId, {
         remainingHours: usage.newRemaining,
+        usedHours: currentUsedHours + usage.hoursUsed,
         status: newStatus,
         lastUsedDate: filingDate.toISOString(),
         lastUsedBy: Session.getActiveUser().getEmail()
