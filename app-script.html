@@ -33,12 +33,20 @@
         const bodyEl = document.getElementById('universalModalBody');
         const footerEl = document.getElementById('universalModalFooter');
 
+        // Detect if message contains HTML (starts with < or contains HTML tags)
+        const isHtmlContent = config.message.trim().startsWith('<') || /<[a-z][\s\S]*>/i.test(config.message);
+
+        // Use div for HTML content, p for plain text
+        const messageWrapper = isHtmlContent
+          ? `<div class="mb-0">${config.message}</div>`
+          : `<p class="text-muted mb-0">${config.message}</p>`;
+
         bodyEl.innerHTML = `
           <div class="mb-3">
             <i class="bi ${config.icon} ${config.iconColor}" style="font-size: 4rem;"></i>
           </div>
           <h5 class="modal-title mb-3">${config.title}</h5>
-          <p class="text-muted mb-0">${config.message}</p>
+          ${messageWrapper}
         `;
 
         footerEl.innerHTML = '';
@@ -1010,6 +1018,9 @@
               <td><span class="badge ${hol.type === 'Regular' ? 'bg-danger' : 'bg-warning'}">${hol.type}</span></td>
               <td>${hol.isRecurring ? 'Yes' : 'No'}</td>
               <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editHoliday('${doc.id}')">
+                  <i class="bi bi-pencil"></i>
+                </button>
                 <button class="btn btn-sm btn-outline-danger" onclick="deleteHoliday('${doc.id}')">
                   <i class="bi bi-trash"></i>
                 </button>
@@ -1366,13 +1377,12 @@
           bootstrap.Modal.getInstance(document.getElementById('generateCertModal')).hide();
 
           let message = `
-            <div style="text-align: center;">
-              <h4 class="text-success mb-3"><i class="bi bi-check-circle-fill"></i> Certificate Generated Successfully!</h4>
-              <table class="table table-bordered mt-3" style="text-align: left;">
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
                 <tbody>
                   <tr>
-                    <td style="width: 40%;"><strong>Employee</strong></td>
-                    <td>${result.employeeName}</td>
+                    <td style="width: 40%;"><strong>Certificate ID</strong></td>
+                    <td><code>${result.certificateId}</code></td>
                   </tr>
                   <tr>
                     <td><strong>Period</strong></td>
@@ -1381,18 +1391,6 @@
                   <tr>
                     <td><strong>Total Hours</strong></td>
                     <td><strong class="text-primary">${result.totalEarnedHours.toFixed(1)}</strong> hours</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Certificate ID</strong></td>
-                    <td><code>${result.certificateId}</code></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Date of Issuance</strong></td>
-                    <td>${result.dateOfIssuance}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Valid Until</strong></td>
-                    <td>${result.validUntil}</td>
                   </tr>`;
 
           if (result.pdfUrl) {
@@ -1412,7 +1410,7 @@
               </table>
             </div>`;
 
-          Modal.success('Success', message);
+          Modal.success('Certificate Generated Successfully!', message);
 
           // Reload the list
           loadUncertifiedMonths();
@@ -1667,31 +1665,46 @@
 
             errorDetails = `
               <div class="mt-3">
-                <h5 class="text-danger">Failed Certificates:</h5>
-                <div class="text-start" style="max-height: 300px; overflow-y: auto;">
-                  ${failures.map((failure, index) => `
-                    <div class="alert alert-danger py-2 mb-2">
-                      <strong>Employee:</strong> ${employeeNames[failure.employeeId] || failure.employeeId}<br>
-                      <strong>Error:</strong> ${failure.error}
-                    </div>
-                  `).join('')}
+                <h5 class="text-danger mb-2">Failed Certificates:</h5>
+                <div style="max-height: 300px; overflow-y: auto;">
+                  <table class="table table-sm table-bordered">
+                    <thead>
+                      <tr>
+                        <th style="width: 40%;">Employee</th>
+                        <th>Error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${failures.map((failure, index) => `
+                        <tr>
+                          <td>${employeeNames[failure.employeeId] || failure.employeeId}</td>
+                          <td class="text-danger">${failure.error}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             `;
           }
 
           // Show different message based on success/failure
-          const title = allFailed ? 'Batch Failed' : 'Batch Complete';
-          const headerClass = allFailed ? 'text-danger' : 'text-success';
-          const headerText = allFailed ? 'Batch Generation Failed!' : 'Batch Generation Complete!';
+          const title = allFailed ? 'Batch Generation Failed!' : 'Batch Generation Complete!';
 
           const message = `
-            <div style="text-align: center;">
-              <h4 class="${headerClass} mb-3">${headerText}</h4>
-              <div class="mb-3">
-                <strong>Success:</strong> ${result.successCount} certificates<br>
-                <strong>Failed:</strong> ${result.failCount} certificates
-              </div>
+            <div class="text-center">
+              <table class="table table-bordered text-start mx-auto" style="max-width: 400px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 50%;"><strong>Success</strong></td>
+                    <td><strong class="text-success">${result.successCount}</strong> certificates</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Failed</strong></td>
+                    <td><strong class="text-danger">${result.failCount}</strong> certificates</td>
+                  </tr>
+                </tbody>
+              </table>
               ${errorDetails}
             </div>
           `;
@@ -1754,7 +1767,7 @@
 
       try {
         loadingDiv.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
+        tbody.innerHTML = ''; // Clear tbody, loading message is shown in loadingDiv
 
         const result = await new Promise((resolve, reject) => {
           google.script.run
@@ -2465,6 +2478,12 @@
         document.getElementById('ot-monthly-progress').style.width = '0%';
         document.getElementById('ot-total-progress').style.width = '0%';
 
+        // Hide spinners
+        const monthlySpinner = document.getElementById('ot-monthly-spinner');
+        const totalSpinner = document.getElementById('ot-total-spinner');
+        if (monthlySpinner) monthlySpinner.classList.add('d-none');
+        if (totalSpinner) totalSpinner.classList.add('d-none');
+
         return;
       }
 
@@ -2474,6 +2493,12 @@
       if (totalSection) totalSection.style.display = 'none';
       if (submitSection) submitSection.style.display = 'none';
       toggleEntryLoading(true);
+
+      // Show spinners while loading
+      const monthlySpinner = document.getElementById('ot-monthly-spinner');
+      const totalSpinner = document.getElementById('ot-total-spinner');
+      if (monthlySpinner) monthlySpinner.classList.remove('d-none');
+      if (totalSpinner) totalSpinner.classList.remove('d-none');
 
       try {
         // Check for certificate or historical balance blocking
@@ -2495,6 +2520,9 @@
           if (totalSection) totalSection.style.display = 'none';
           if (submitSection) submitSection.style.display = 'none';
           hideEntryContent();
+          // Hide spinners
+          if (monthlySpinner) monthlySpinner.classList.add('d-none');
+          if (totalSpinner) totalSpinner.classList.add('d-none');
           return;
         }
 
@@ -2528,6 +2556,10 @@
 
         // Update progress bars
         updateOvertimeProgress();
+
+        // Hide spinners after data is loaded
+        if (monthlySpinner) monthlySpinner.classList.add('d-none');
+        if (totalSpinner) totalSpinner.classList.add('d-none');
 
         // Clear existing entries first
         overtimeEntries = [];
@@ -2646,6 +2678,11 @@
         if (entrySection) entrySection.style.display = 'none';
         if (totalSection) totalSection.style.display = 'none';
         if (submitSection) submitSection.style.display = 'none';
+        // Hide spinners on error
+        const monthlySpinner = document.getElementById('ot-monthly-spinner');
+        const totalSpinner = document.getElementById('ot-total-spinner');
+        if (monthlySpinner) monthlySpinner.classList.add('d-none');
+        if (totalSpinner) totalSpinner.classList.add('d-none');
       }
     };
 
@@ -2796,6 +2833,9 @@
       return 'selected day';
     }
 
+    // Debounce timers for date validation (to prevent false duplicates while typing)
+    const dateValidationTimers = new Map();
+
     // On date change - auto-detect day type
     window.onOvertimeDateChange = async function(rowId) {
       const dateInput = document.getElementById(`ot-date-${rowId}`);
@@ -2803,6 +2843,30 @@
       if (!dateInput || !entry) return;
 
       const rawValue = dateInput.value;
+
+      if (!rawValue) {
+        resetOvertimeEntryDate(entry, rowId);
+        calculateOvertimeGrandTotal();
+        updateOvertimeProgress();
+        return;
+      }
+
+      // Clear existing timer for this row
+      if (dateValidationTimers.has(rowId)) {
+        clearTimeout(dateValidationTimers.get(rowId));
+      }
+
+      // Debounce validation to allow user to finish typing (e.g., "11" instead of just "1")
+      const timer = setTimeout(async () => {
+        await validateAndProcessOvertimeDate(rowId, dateInput, entry, rawValue);
+        dateValidationTimers.delete(rowId);
+      }, 400); // Wait 400ms after user stops typing
+
+      dateValidationTimers.set(rowId, timer);
+    };
+
+    // Separated validation logic for debouncing
+    async function validateAndProcessOvertimeDate(rowId, dateInput, entry, rawValue) {
 
       if (!rawValue) {
         resetOvertimeEntryDate(entry, rowId);
@@ -2930,7 +2994,7 @@
       entry.holidayName = holidayName;
 
       calculateOvertimeRow(rowId);
-    };
+    }
 
     // Calculate overtime for a single row
     window.calculateOvertimeRow = function(rowId) {
@@ -3264,13 +3328,24 @@
           const summary = summaryParts.join(', ');
 
           const message = `
-            <div style="text-align: center;">
-              <h4 class="text-success mb-3">${summary}</h4>
-              <div class="mb-3">
-                <h5 class="text-primary mb-0">${result.totalCocEarned.toFixed(1)} hours</h5>
-                <small class="text-muted">Total COC Earned (Uncertified)</small>
-              </div>
-              <p class="text-muted mb-0">Generate a certificate to activate these credits.</p>
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 40%;"><strong>Summary</strong></td>
+                    <td>${summary}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total COC Earned</strong></td>
+                    <td><strong class="text-primary">${result.totalCocEarned.toFixed(1)}</strong> hours (Uncertified)</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" class="text-center text-muted">
+                      <small>Generate a certificate to activate these credits.</small>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           `;
           Modal.success('Overtime Saved Successfully!', message);
@@ -3330,7 +3405,22 @@
         });
 
         if (result.success) {
-          const message = `Hours Used: ${result.hoursUsed}\nNew Balance: ${result.newBalance.toFixed(2)} hours`;
+          const message = `
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 40%;"><strong>Hours Used</strong></td>
+                    <td><strong>${result.hoursUsed}</strong> hours</td>
+                  </tr>
+                  <tr>
+                    <td><strong>New Balance</strong></td>
+                    <td><strong class="text-primary">${result.newBalance.toFixed(2)}</strong> hours</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          `;
           Modal.success('CTO Logged!', message);
           e.target.reset();
           document.getElementById('cto-available-balance').textContent = '0.00';
@@ -3401,21 +3491,23 @@
 
         if (result.success) {
           const message = `
-            <div style="text-align: center;">
-              <div class="mb-3">
-                <h4 class="text-primary mb-0">${result.remainingHours} hours</h4>
-                <small class="text-muted">Remaining Balance</small>
-              </div>
-              <div class="d-flex justify-content-around">
-                <div>
-                  <strong>Valid Until:</strong><br>
-                  ${result.validUntil}
-                </div>
-                <div>
-                  <strong>Status:</strong><br>
-                  <span class="badge bg-success">${result.status}</span>
-                </div>
-              </div>
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 40%;"><strong>Remaining Balance</strong></td>
+                    <td><strong class="text-primary">${result.remainingHours}</strong> hours</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Valid Until</strong></td>
+                    <td>${result.validUntil}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Status</strong></td>
+                    <td><span class="badge bg-success">${result.status}</span></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           `;
           Modal.success(isEdit ? 'Historical Balance Updated!' : 'Historical Balance Migrated!', message);
@@ -3546,9 +3638,34 @@
 
         if (result.success) {
           const title = isUpdate ? 'Employee Updated!' : 'Employee Added!';
-          const message = isUpdate
-            ? 'Employee information updated successfully.'
-            : `Employee ID: ${result.employeeId}`;
+          let message;
+          if (isUpdate) {
+            message = `
+              <div class="text-center">
+                <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                  <tbody>
+                    <tr>
+                      <td><strong>Status</strong></td>
+                      <td>Employee information updated successfully</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            `;
+          } else {
+            message = `
+              <div class="text-center">
+                <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                  <tbody>
+                    <tr>
+                      <td style="width: 40%;"><strong>Employee ID</strong></td>
+                      <td><code>${result.employeeId}</code></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            `;
+          }
           Modal.success(title, message);
           bootstrap.Modal.getInstance(document.getElementById('employeeModal')).hide();
           form.reset();
@@ -3597,6 +3714,37 @@
 
     window.resetHolidayForm = function() {
       document.getElementById('holidayForm').reset();
+      document.getElementById('hol-id').value = '';
+      document.getElementById('holidayModalTitle').textContent = 'Add Holiday';
+    };
+
+    window.editHoliday = async function(holidayId) {
+      try {
+        const db = getFirestore();
+        const doc = await getDoc(doc(db, 'holidays', holidayId));
+
+        if (!doc.exists()) {
+          Modal.error('Error', 'Holiday not found');
+          return;
+        }
+
+        const hol = doc.data();
+
+        // Populate form with existing data
+        document.getElementById('hol-id').value = holidayId;
+        document.getElementById('hol-date').value = hol.date;
+        document.getElementById('hol-name').value = hol.name;
+        document.getElementById('hol-type').value = hol.type;
+        document.getElementById('hol-recurring').checked = hol.isRecurring || false;
+
+        // Update modal title
+        document.getElementById('holidayModalTitle').textContent = 'Edit Holiday';
+
+        // Show modal
+        new bootstrap.Modal(document.getElementById('holidayModal')).show();
+      } catch (error) {
+        Modal.error('Error', 'Error loading holiday: ' + error);
+      }
     };
 
     window.saveHoliday = async function() {
@@ -3606,6 +3754,9 @@
         return;
       }
 
+      const holidayId = document.getElementById('hol-id').value;
+      const isEdit = !!holidayId;
+
       const data = {
         date: document.getElementById('hol-date').value,
         name: document.getElementById('hol-name').value,
@@ -3613,23 +3764,28 @@
         isRecurring: document.getElementById('hol-recurring').checked
       };
 
+      if (isEdit) {
+        data.holidayId = holidayId;
+      }
+
       try {
+        const serverFunction = isEdit ? 'updateHoliday_SERVER' : 'addHoliday_SERVER';
         const result = await new Promise((resolve, reject) => {
           google.script.run
             .withSuccessHandler(resolve)
             .withFailureHandler(reject)
-            .addHoliday_SERVER(data);
+            [serverFunction](data);
         });
 
         if (result.success) {
-          Modal.success('Success!', 'Holiday added successfully!');
+          Modal.success('Success!', `Holiday ${isEdit ? 'updated' : 'added'} successfully!`);
           bootstrap.Modal.getInstance(document.getElementById('holidayModal')).hide();
           form.reset();
         } else {
           Modal.error('Error', result.error);
         }
       } catch (error) {
-        Modal.error('Error', 'Error adding holiday: ' + error);
+        Modal.error('Error', `Error ${isEdit ? 'updating' : 'adding'} holiday: ` + error);
       }
     };
 
@@ -3937,6 +4093,11 @@
           // Refresh overtime context to validate current selection
           if (typeof updateOvertimeContext === 'function') {
             updateOvertimeContext();
+          }
+        } else if (page === 'view-certificates') {
+          // Load certificates with current filters (defaults to All Years)
+          if (typeof loadCertificates === 'function') {
+            loadCertificates();
           }
         }
       });

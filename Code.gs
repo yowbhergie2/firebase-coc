@@ -1528,6 +1528,51 @@ function addHoliday_SERVER(data) {
   }
 }
 
+function updateHoliday_SERVER(data) {
+  try {
+    const db = getFirestore();
+
+    if (!data.holidayId) {
+      return {
+        success: false,
+        error: 'Holiday ID is required'
+      };
+    }
+
+    // Get existing holiday data to preserve all fields
+    const existingDoc = db.getDocument('holidays/' + data.holidayId);
+    if (!existingDoc || !existingDoc.obj) {
+      return {
+        success: false,
+        error: 'Holiday not found'
+      };
+    }
+
+    // Merge existing data with updates to preserve all fields (including createdAt, createdBy)
+    const updateData = Object.assign({}, existingDoc.obj, {
+      date: data.date,
+      name: data.name,
+      type: data.type,
+      isRecurring: data.isRecurring || false,
+      updatedAt: new Date().toISOString(),
+      updatedBy: Session.getActiveUser().getEmail()
+    });
+
+    db.updateDocument('holidays/' + data.holidayId, updateData);
+
+    return {
+      success: true,
+      holidayId: data.holidayId
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
 function deleteHoliday_SERVER(holidayId) {
   try {
     const db = getFirestore();
