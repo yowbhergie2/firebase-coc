@@ -1665,14 +1665,24 @@
 
             errorDetails = `
               <div class="mt-3">
-                <h5 class="text-danger">Failed Certificates:</h5>
-                <div class="text-start" style="max-height: 300px; overflow-y: auto;">
-                  ${failures.map((failure, index) => `
-                    <div class="alert alert-danger py-2 mb-2">
-                      <strong>Employee:</strong> ${employeeNames[failure.employeeId] || failure.employeeId}<br>
-                      <strong>Error:</strong> ${failure.error}
-                    </div>
-                  `).join('')}
+                <h5 class="text-danger mb-2">Failed Certificates:</h5>
+                <div style="max-height: 300px; overflow-y: auto;">
+                  <table class="table table-sm table-bordered">
+                    <thead>
+                      <tr>
+                        <th style="width: 40%;">Employee</th>
+                        <th>Error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${failures.map((failure, index) => `
+                        <tr>
+                          <td>${employeeNames[failure.employeeId] || failure.employeeId}</td>
+                          <td class="text-danger">${failure.error}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             `;
@@ -1683,10 +1693,18 @@
 
           const message = `
             <div class="text-center">
-              <div class="mb-3">
-                <strong>Success:</strong> ${result.successCount} certificates<br>
-                <strong>Failed:</strong> ${result.failCount} certificates
-              </div>
+              <table class="table table-bordered text-start mx-auto" style="max-width: 400px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 50%;"><strong>Success</strong></td>
+                    <td><strong class="text-success">${result.successCount}</strong> certificates</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Failed</strong></td>
+                    <td><strong class="text-danger">${result.failCount}</strong> certificates</td>
+                  </tr>
+                </tbody>
+              </table>
               ${errorDetails}
             </div>
           `;
@@ -3286,13 +3304,24 @@
           const summary = summaryParts.join(', ');
 
           const message = `
-            <div style="text-align: center;">
-              <h4 class="text-success mb-3">${summary}</h4>
-              <div class="mb-3">
-                <h5 class="text-primary mb-0">${result.totalCocEarned.toFixed(1)} hours</h5>
-                <small class="text-muted">Total COC Earned (Uncertified)</small>
-              </div>
-              <p class="text-muted mb-0">Generate a certificate to activate these credits.</p>
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 40%;"><strong>Summary</strong></td>
+                    <td>${summary}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total COC Earned</strong></td>
+                    <td><strong class="text-primary">${result.totalCocEarned.toFixed(1)}</strong> hours (Uncertified)</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" class="text-center text-muted">
+                      <small>Generate a certificate to activate these credits.</small>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           `;
           Modal.success('Overtime Saved Successfully!', message);
@@ -3352,7 +3381,22 @@
         });
 
         if (result.success) {
-          const message = `Hours Used: ${result.hoursUsed}\nNew Balance: ${result.newBalance.toFixed(2)} hours`;
+          const message = `
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 40%;"><strong>Hours Used</strong></td>
+                    <td><strong>${result.hoursUsed}</strong> hours</td>
+                  </tr>
+                  <tr>
+                    <td><strong>New Balance</strong></td>
+                    <td><strong class="text-primary">${result.newBalance.toFixed(2)}</strong> hours</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          `;
           Modal.success('CTO Logged!', message);
           e.target.reset();
           document.getElementById('cto-available-balance').textContent = '0.00';
@@ -3423,21 +3467,23 @@
 
         if (result.success) {
           const message = `
-            <div style="text-align: center;">
-              <div class="mb-3">
-                <h4 class="text-primary mb-0">${result.remainingHours} hours</h4>
-                <small class="text-muted">Remaining Balance</small>
-              </div>
-              <div class="d-flex justify-content-around">
-                <div>
-                  <strong>Valid Until:</strong><br>
-                  ${result.validUntil}
-                </div>
-                <div>
-                  <strong>Status:</strong><br>
-                  <span class="badge bg-success">${result.status}</span>
-                </div>
-              </div>
+            <div class="text-center">
+              <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                <tbody>
+                  <tr>
+                    <td style="width: 40%;"><strong>Remaining Balance</strong></td>
+                    <td><strong class="text-primary">${result.remainingHours}</strong> hours</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Valid Until</strong></td>
+                    <td>${result.validUntil}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Status</strong></td>
+                    <td><span class="badge bg-success">${result.status}</span></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           `;
           Modal.success(isEdit ? 'Historical Balance Updated!' : 'Historical Balance Migrated!', message);
@@ -3568,9 +3614,34 @@
 
         if (result.success) {
           const title = isUpdate ? 'Employee Updated!' : 'Employee Added!';
-          const message = isUpdate
-            ? 'Employee information updated successfully.'
-            : `Employee ID: ${result.employeeId}`;
+          let message;
+          if (isUpdate) {
+            message = `
+              <div class="text-center">
+                <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                  <tbody>
+                    <tr>
+                      <td><strong>Status</strong></td>
+                      <td>Employee information updated successfully</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            `;
+          } else {
+            message = `
+              <div class="text-center">
+                <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
+                  <tbody>
+                    <tr>
+                      <td style="width: 40%;"><strong>Employee ID</strong></td>
+                      <td><code>${result.employeeId}</code></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            `;
+          }
           Modal.success(title, message);
           bootstrap.Modal.getInstance(document.getElementById('employeeModal')).hide();
           form.reset();
