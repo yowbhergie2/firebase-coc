@@ -1784,7 +1784,7 @@ function logCto_SERVER(data) {
       const currentBatchDoc = db.getDocument('creditBatches/' + usage.batchId);
       if (!currentBatchDoc || !currentBatchDoc.obj) {
         Logger.log('Warning: Batch document not found: ' + usage.batchId);
-        continue;
+        return; // Skip this iteration in forEach
       }
 
       const currentBatch = currentBatchDoc.obj;
@@ -2253,7 +2253,7 @@ function updateCto_SERVER(data) {
       const currentBatchDoc = db.getDocument('creditBatches/' + usage.batchId);
       if (!currentBatchDoc || !currentBatchDoc.obj) {
         Logger.log('Warning: Batch document not found: ' + usage.batchId);
-        continue;
+        return; // Skip this iteration in forEach
       }
 
       const currentBatch = currentBatchDoc.obj;
