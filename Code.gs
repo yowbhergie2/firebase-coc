@@ -854,12 +854,26 @@ function generateCOCCertificate_SERVER(data) {
       }
     }
 
+    // IMPORTANT: Generate PDF FIRST before creating any database records
+    // If PDF generation fails, entire certificate generation should fail
+    let pdfUrl = null;
+    let pdfId = null;
+    const pdfResult = generateCertificatePDF({
+      employee: employee,
+      totalHours: totalEarnedHours,
+      dateOfIssuance: dateOfIssuance,
+      validUntil: validUntil
+    });
+    pdfUrl = pdfResult.url;
+    pdfId = pdfResult.id;
+
+    // Only proceed with database writes if PDF generation succeeded
     // Generate IDs
     const certificateId = 'CERT_' + Utilities.getUuid();
     const batchId = 'BATCH_' + Utilities.getUuid();
     const ledgerId = 'LEDGER_' + Utilities.getUuid();
 
-    // Create certificate document
+    // Create certificate document with PDF info
     const certData = {
       certificateId: certificateId,
       employeeId: data.employeeId,
@@ -869,6 +883,8 @@ function generateCOCCertificate_SERVER(data) {
       dateOfIssuance: dateOfIssuance.toISOString(),
       validUntil: validUntil.toISOString(),
       logIds: logs.map(log => log.logId),
+      pdfUrl: pdfUrl,
+      pdfId: pdfId,
       createdAt: new Date().toISOString(),
       createdBy: Session.getActiveUser().getEmail()
     };
@@ -935,31 +951,6 @@ function generateCOCCertificate_SERVER(data) {
 
     db.createDocument('ledger/' + ledgerId, ledgerData);
 
-    // Generate PDF
-    let pdfUrl = null;
-    let pdfId = null;
-    let pdfWarning = null;
-    try {
-      const pdfResult = generateCertificatePDF({
-        employee: employee,
-        totalHours: totalEarnedHours,
-        dateOfIssuance: dateOfIssuance,
-        validUntil: validUntil
-      });
-      pdfUrl = pdfResult.url;
-      pdfId = pdfResult.id;
-
-      // Update certificate document with PDF info
-      db.updateDocument('certificates/' + certificateId, {
-        pdfUrl: pdfUrl,
-        pdfId: pdfId
-      });
-    } catch (pdfError) {
-      Logger.log('PDF generation failed: ' + pdfError.toString());
-      pdfWarning = 'Certificate created successfully, but PDF generation failed: ' + pdfError.toString();
-      // Continue even if PDF fails
-    }
-
     // Get employee full name for response
     const employeeFullName = `${employee.firstName} ${employee.middleName || ''} ${employee.lastName}`.trim();
 
@@ -968,7 +959,6 @@ function generateCOCCertificate_SERVER(data) {
       certificateId: certificateId,
       totalEarnedHours: totalEarnedHours,
       pdfUrl: pdfUrl,
-      pdfWarning: pdfWarning,
       employeeName: employeeFullName,
       monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
       // Date format: MM/dd/yyyy - produces "09/01/2025"
@@ -980,7 +970,7 @@ function generateCOCCertificate_SERVER(data) {
     Logger.log('Error generating certificate: ' + error.toString());
     return {
       success: false,
-      error: error.toString()
+      error: 'Certificate generation failed: ' + error.toString()
     };
   }
 }

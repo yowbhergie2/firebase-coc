@@ -1393,8 +1393,8 @@
                     <td><strong class="text-primary">${result.totalEarnedHours.toFixed(1)}</strong> hours</td>
                   </tr>`;
 
-          if (result.pdfUrl) {
-            message += `
+          // PDF Certificate row (always present since PDF is required for success)
+          message += `
                   <tr>
                     <td><strong>PDF Certificate</strong></td>
                     <td>
@@ -1403,22 +1403,10 @@
                       </a>
                     </td>
                   </tr>`;
-          }
 
           message += `
                 </tbody>
-              </table>`;
-
-          // Add warning if PDF generation failed
-          if (result.pdfWarning) {
-            message += `
-              <div class="alert alert-warning mt-3 text-start">
-                <i class="bi bi-exclamation-triangle"></i> <strong>Warning:</strong><br>
-                ${result.pdfWarning}
-              </div>`;
-          }
-
-          message += `
+              </table>
             </div>`;
 
           Modal.success('Certificate Generated Successfully!', message);
