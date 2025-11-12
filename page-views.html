@@ -528,14 +528,14 @@
             <table class="table table-hover table-sm">
               <thead>
                 <tr>
-                  <th>Certificate ID</th>
-                  <th>Employee</th>
-                  <th>Period</th>
-                  <th>Hours</th>
-                  <th>Date of Issuance</th>
-                  <th>Valid Until</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th style="width: 15%;">Certificate ID</th>
+                  <th style="width: 20%;">Employee</th>
+                  <th style="width: 15%;">Period</th>
+                  <th style="width: 10%;">Hours</th>
+                  <th style="width: 10%;">Date of Issuance</th>
+                  <th style="width: 10%;">Valid Until</th>
+                  <th style="width: 8%;">Status</th>
+                  <th style="width: 12%;">Actions</th>
                 </tr>
               </thead>
               <tbody id="certificatesTableBody">
@@ -673,14 +673,11 @@
 
                 <!-- Restore Remarks Section (shown only when reducing hours) -->
                 <div id="cto-restore-remarks-section" style="display: none;" class="mb-3">
-                  <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
+                  <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
                     <strong>You are reducing hours, which will restore hours back to COC batches.</strong>
-                    <p class="mb-2 mt-2 small">Please provide remarks explaining why hours are being restored:</p>
-                    <textarea class="form-control" id="cto-restore-remarks" rows="3" placeholder="e.g., Correcting over-deduction, Date range adjustment, etc."></textarea>
-                    <div id="cto-restore-remarks-error" class="text-danger small mt-1" style="display: none;">
-                      <i class="bi bi-exclamation-circle"></i> Remarks are required when restoring hours.
-                    </div>
+                    <p class="mb-2 mt-2 small">Remarks (optional):</p>
+                    <textarea class="form-control" id="cto-restore-remarks" rows="3" placeholder="e.g., Correcting over-deduction, Date range adjustment, etc. (optional)"></textarea>
                   </div>
                 </div>
 

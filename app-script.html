@@ -2007,20 +2007,20 @@
 
             // Certificate PDF button
             const certPdfButton = cert.pdfUrl
-              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary mb-1" title="Certificate PDF">
+              ? `<a href="${cert.pdfUrl}" target="_blank" class="btn btn-sm btn-primary me-1" title="Certificate PDF">
                    <i class="bi bi-file-pdf"></i> Cert
                  </a>`
               : '';
 
             // Summary PDF button
             const summaryPdfButton = cert.summaryPdfUrl
-              ? `<a href="${cert.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success mb-1" title="Overtime Summary PDF">
+              ? `<a href="${cert.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success" title="Overtime Summary PDF">
                    <i class="bi bi-file-pdf"></i> Summary
                  </a>`
               : '';
 
             const pdfButtons = `
-              <div class="d-flex flex-column gap-1">
+              <div class="d-flex flex-wrap gap-1 align-items-center">
                 ${certPdfButton}
                 ${summaryPdfButton}
               </div>
@@ -2028,14 +2028,14 @@
 
             return `
               <tr>
-                <td><code class="small">${cert.certificateId}</code></td>
-                <td>${cert.employeeName}</td>
-                <td>${cert.period}</td>
-                <td><strong>${cert.totalHours.toFixed(1)}</strong> hrs</td>
-                <td>${formatDate(issuanceDate)}</td>
-                <td>${formatDate(validUntilDate)}</td>
-                <td>${statusBadge}</td>
-                <td>${pdfButtons}</td>
+                <td style="width: 15%;"><code class="small">${cert.certificateId}</code></td>
+                <td style="width: 20%;">${cert.employeeName}</td>
+                <td style="width: 15%;">${cert.period}</td>
+                <td style="width: 10%;"><strong>${cert.totalHours.toFixed(1)}</strong> hrs</td>
+                <td style="width: 10%;">${formatDate(issuanceDate)}</td>
+                <td style="width: 10%;">${formatDate(validUntilDate)}</td>
+                <td style="width: 8%;">${statusBadge}</td>
+                <td style="width: 12%;">${pdfButtons}</td>
               </tr>
             `;
           }).join('');
@@ -4687,19 +4687,8 @@
         return;
       }
 
-      // Validation: If restoring hours, remarks are required
-      const restoreRemarksSection = document.getElementById('cto-restore-remarks-section');
-      if (restoreRemarksSection.style.display !== 'none') {
-        const restoreRemarks = document.getElementById('cto-restore-remarks').value.trim();
-        const errorDiv = document.getElementById('cto-restore-remarks-error');
-        if (!restoreRemarks) {
-          errorDiv.style.display = 'block';
-          document.getElementById('cto-restore-remarks').focus();
-          return;
-        } else {
-          errorDiv.style.display = 'none';
-        }
-      }
+      // Note: Restore remarks are optional for CTO editing
+      // Remarks are only required for CTO cancellation
 
       const data = {
         employeeId: document.getElementById('cto-employee').value,
@@ -4712,9 +4701,10 @@
 
       if (isEdit) {
         data.ledgerId = ledgerId;
-        // Include restore remarks if hours are being reduced
-        if (restoreRemarksSection.style.display !== 'none') {
-          data.restoreRemarks = document.getElementById('cto-restore-remarks').value.trim();
+        // Include restore remarks if provided (optional)
+        const restoreRemarksValue = document.getElementById('cto-restore-remarks').value.trim();
+        if (restoreRemarksValue) {
+          data.restoreRemarks = restoreRemarksValue;
         }
       }
 

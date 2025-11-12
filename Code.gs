@@ -2107,17 +2107,8 @@ function updateCto_SERVER(data) {
     const dateFrom = new Date(data.dateFrom);
     const dateTo = new Date(data.dateTo);
 
-    // Check if hours are being restored (reduced)
-    const hoursBeingRestored = oldHoursUsed - newHoursUsed;
-    if (hoursBeingRestored > 0) {
-      // If restoring hours, remarks should be provided
-      if (!data.restoreRemarks || !data.restoreRemarks.trim()) {
-        return {
-          success: false,
-          error: 'Please provide remarks explaining why hours are being restored.'
-        };
-      }
-    }
+    // Note: Restore remarks are optional when editing CTO
+    // Remarks are only required for cancellation
 
     // Check for overlapping CTO dates (exclude current one being edited)
     const allLedgerDocs = db.getDocuments('ledger');
