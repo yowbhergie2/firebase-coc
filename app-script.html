@@ -4123,6 +4123,10 @@
             // Trigger day breakdown generation
             generateDayBreakdown();
 
+            // Store original hours FIRST for restore remarks check
+            const originalHours = Math.abs(cto.hoursChange || 0);
+            document.getElementById('cto-original-hours').value = originalHours;
+
             // Set day selections if dayBreakdown exists
             if (cto.dayBreakdown) {
               setTimeout(() => {
@@ -4132,15 +4136,7 @@
                   if (radio) radio.checked = true;
                 });
                 calculateCtototalHours();
-
-                // Store original hours for restore remarks check
-                const originalHours = Math.abs(cto.hoursChange || 0);
-                document.getElementById('cto-original-hours').value = originalHours;
               }, 100);
-            } else {
-              // If no dayBreakdown, still store original hours
-              const originalHours = Math.abs(cto.hoursChange || 0);
-              document.getElementById('cto-original-hours').value = originalHours;
             }
 
             // Show balance
@@ -4149,6 +4145,9 @@
             // Change button text and show cancel button
             document.getElementById('cto-submit-text').textContent = 'Update CTO';
             document.getElementById('cto-cancel-btn').style.display = 'inline-block';
+
+            // Show day breakdown section for editing
+            document.getElementById('cto-day-breakdown-section').style.display = 'block';
 
             // Switch to Log tab
             document.getElementById('cto-log-tab').click();
@@ -4597,22 +4596,31 @@
                     .cancelCto_SERVER(ledgerId, reason);
                 });
 
+                // Hide spinner
+                spinnerContainer.style.display = 'none';
+
                 if (result.success) {
                   // Use custom message if provided (includes forfeit info)
                   const message = result.message || `Successfully cancelled CTO and restored ${result.hoursRestored.toFixed(1)} hours.`;
                   Modal.success('CTO Cancelled', message);
                   loadCtoApplications();
+                  return true; // Close the modal
                 } else {
+                  // Re-enable buttons for retry
+                  reasonField.disabled = false;
+                  if (confirmBtn) confirmBtn.disabled = false;
+                  if (cancelBtn) cancelBtn.disabled = false;
                   Modal.error('Error', result.error);
+                  return false; // Keep modal open
                 }
               } catch (error) {
-                Modal.error('Error', 'Failed to cancel CTO: ' + error);
-              } finally {
                 // Hide spinner and re-enable buttons
                 spinnerContainer.style.display = 'none';
                 reasonField.disabled = false;
                 if (confirmBtn) confirmBtn.disabled = false;
                 if (cancelBtn) cancelBtn.disabled = false;
+                Modal.error('Error', 'Failed to cancel CTO: ' + error);
+                return false; // Keep modal open
               }
             }
           }
@@ -4887,12 +4895,14 @@
 
               const actions = status === 'Active'
                 ? `
-                  <button class="btn btn-sm btn-outline-primary" onclick="editCtoApplication('${app.ledgerId}', this)" title="Edit">
-                    <i class="bi bi-pencil"></i>
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger" onclick="cancelCtoApplication('${app.ledgerId}', '${app.employeeName}', ${Math.abs(app.hoursChange)})" title="Cancel">
-                    <i class="bi bi-x-circle"></i>
-                  </button>
+                  <div class="d-flex gap-1 flex-nowrap">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editCtoApplication('${app.ledgerId}', this)" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="cancelCtoApplication('${app.ledgerId}', '${app.employeeName}', ${Math.abs(app.hoursChange)})" title="Cancel">
+                      <i class="bi bi-x-circle"></i>
+                    </button>
+                  </div>
                 `
                 : '<span class="text-muted">-</span>';
 
