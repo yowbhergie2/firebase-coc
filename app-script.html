@@ -1393,8 +1393,8 @@
                     <td><strong class="text-primary">${result.totalEarnedHours.toFixed(1)}</strong> hours</td>
                   </tr>`;
 
-          if (result.pdfUrl) {
-            message += `
+          // PDF Certificate row (always present since PDF is required for success)
+          message += `
                   <tr>
                     <td><strong>PDF Certificate</strong></td>
                     <td>
@@ -1403,7 +1403,6 @@
                       </a>
                     </td>
                   </tr>`;
-          }
 
           message += `
                 </tbody>

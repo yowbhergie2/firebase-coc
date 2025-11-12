@@ -16,7 +16,7 @@ const FIREBASE_CONFIG = {
 };
 
 // Certificate Template Spreadsheet
-const CERTIFICATE_TEMPLATE_ID = '1yhFTgHujjncfoM8chjULiSrv_Bq7rMPKZGzM9j4lfwU';
+const CERTIFICATE_TEMPLATE_ID = '12j7SZEwR5J78HMAbDn0-Nbg5DEYuRngsH1vCDnCln9E';
 
 // ============================
 // JWT TOKEN CREATION
@@ -854,12 +854,26 @@ function generateCOCCertificate_SERVER(data) {
       }
     }
 
+    // IMPORTANT: Generate PDF FIRST before creating any database records
+    // If PDF generation fails, entire certificate generation should fail
+    let pdfUrl = null;
+    let pdfId = null;
+    const pdfResult = generateCertificatePDF({
+      employee: employee,
+      totalHours: totalEarnedHours,
+      dateOfIssuance: dateOfIssuance,
+      validUntil: validUntil
+    });
+    pdfUrl = pdfResult.url;
+    pdfId = pdfResult.id;
+
+    // Only proceed with database writes if PDF generation succeeded
     // Generate IDs
     const certificateId = 'CERT_' + Utilities.getUuid();
     const batchId = 'BATCH_' + Utilities.getUuid();
     const ledgerId = 'LEDGER_' + Utilities.getUuid();
 
-    // Create certificate document
+    // Create certificate document with PDF info
     const certData = {
       certificateId: certificateId,
       employeeId: data.employeeId,
@@ -869,6 +883,8 @@ function generateCOCCertificate_SERVER(data) {
       dateOfIssuance: dateOfIssuance.toISOString(),
       validUntil: validUntil.toISOString(),
       logIds: logs.map(log => log.logId),
+      pdfUrl: pdfUrl,
+      pdfId: pdfId,
       createdAt: new Date().toISOString(),
       createdBy: Session.getActiveUser().getEmail()
     };
@@ -935,29 +951,6 @@ function generateCOCCertificate_SERVER(data) {
 
     db.createDocument('ledger/' + ledgerId, ledgerData);
 
-    // Generate PDF
-    let pdfUrl = null;
-    let pdfId = null;
-    try {
-      const pdfResult = generateCertificatePDF({
-        employee: employee,
-        totalHours: totalEarnedHours,
-        dateOfIssuance: dateOfIssuance,
-        validUntil: validUntil
-      });
-      pdfUrl = pdfResult.url;
-      pdfId = pdfResult.id;
-
-      // Update certificate document with PDF info
-      db.updateDocument('certificates/' + certificateId, {
-        pdfUrl: pdfUrl,
-        pdfId: pdfId
-      });
-    } catch (pdfError) {
-      Logger.log('PDF generation failed: ' + pdfError.toString());
-      // Continue even if PDF fails
-    }
-
     // Get employee full name for response
     const employeeFullName = `${employee.firstName} ${employee.middleName || ''} ${employee.lastName}`.trim();
 
@@ -977,7 +970,7 @@ function generateCOCCertificate_SERVER(data) {
     Logger.log('Error generating certificate: ' + error.toString());
     return {
       success: false,
-      error: error.toString()
+      error: 'Certificate generation failed: ' + error.toString()
     };
   }
 }
@@ -1202,17 +1195,34 @@ function convertSheetToPDF(spreadsheet, sheet) {
  */
 function generateCertificatePDF(data) {
   try {
-    const ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
-    const templateSheet = ss.getSheetByName('CERTIFICATE');
+    // Validate CERTIFICATE_TEMPLATE_ID is set
+    if (!CERTIFICATE_TEMPLATE_ID) {
+      throw new Error('CERTIFICATE_TEMPLATE_ID constant is not defined');
+    }
 
+    // Try to open the template spreadsheet
+    let ss;
+    try {
+      ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificate template spreadsheet. Please check CERTIFICATE_TEMPLATE_ID and permissions: ' + e.toString());
+    }
+
+    const templateSheet = ss.getSheetByName('CERTIFICATE');
     if (!templateSheet) {
-      throw new Error('CERTIFICATE template sheet not found');
+      throw new Error('CERTIFICATE template sheet not found in spreadsheet. Available sheets: ' + ss.getSheets().map(s => s.getName()).join(', '));
     }
 
     // Create temporary copy
     const tempSheetName = 'TEMP_CERT_' + data.employee.employeeId + '_' + Date.now();
     const tempSheet = templateSheet.copyTo(ss);
     tempSheet.setName(tempSheetName);
+
+    // CRITICAL: Ensure temp sheet is visible (not hidden)
+    // Hidden sheets cannot be exported as PDF
+    if (tempSheet.isSheetHidden()) {
+      tempSheet.showSheet();
+    }
 
     // Get signatory configuration
     const signatory = getSignatoryConfig();
@@ -1276,7 +1286,18 @@ function generateCertificatePDF(data) {
     SpreadsheetApp.flush();
 
     // Convert to PDF
-    const pdfBlob = convertSheetToPDF(ss, tempSheet);
+    let pdfBlob;
+    try {
+      pdfBlob = convertSheetToPDF(ss, tempSheet);
+    } catch (e) {
+      // Clean up temp sheet before throwing error
+      try {
+        ss.deleteSheet(tempSheet);
+      } catch (cleanupError) {
+        Logger.log('Error cleaning up temp sheet: ' + cleanupError.toString());
+      }
+      throw new Error('Failed to convert sheet to PDF: ' + e.toString());
+    }
 
     // Use employee name in format: "LastName, FirstName"
     const pdfFileName = `COC_Certificate_${data.employee.lastName}, ${data.employee.firstName}.pdf`;
@@ -1284,7 +1305,14 @@ function generateCertificatePDF(data) {
 
     // Save to Drive with year/month organization
     const CERTIFICATES_FOLDER_ID = '1QltJeBLauIIjITAE8UUTNKwWb3u4r4Nr';
-    const mainFolder = DriveApp.getFolderById(CERTIFICATES_FOLDER_ID);
+
+    // Validate folder access
+    let mainFolder;
+    try {
+      mainFolder = DriveApp.getFolderById(CERTIFICATES_FOLDER_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificates folder. Please check folder ID and permissions: ' + e.toString());
+    }
 
     // Get year and month from date of issuance
     const year = data.dateOfIssuance.getFullYear();
@@ -1311,7 +1339,19 @@ function generateCertificatePDF(data) {
     }
 
     // Save PDF to month folder
-    const pdfFile = monthFolder.createFile(pdfBlob);
+    let pdfFile;
+    try {
+      pdfFile = monthFolder.createFile(pdfBlob);
+    } catch (e) {
+      // Clean up temp sheet before throwing error
+      try {
+        ss.deleteSheet(tempSheet);
+      } catch (cleanupError) {
+        Logger.log('Error cleaning up temp sheet: ' + cleanupError.toString());
+      }
+      throw new Error('Failed to save PDF to Drive folder: ' + e.toString());
+    }
+
     const pdfUrl = pdfFile.getUrl();
     const pdfId = pdfFile.getId();
 
