@@ -2082,6 +2082,18 @@ function updateCto_SERVER(data) {
     const dateFrom = new Date(data.dateFrom);
     const dateTo = new Date(data.dateTo);
 
+    // Check if hours are being restored (reduced)
+    const hoursBeingRestored = oldHoursUsed - newHoursUsed;
+    if (hoursBeingRestored > 0) {
+      // If restoring hours, remarks should be provided
+      if (!data.restoreRemarks || !data.restoreRemarks.trim()) {
+        return {
+          success: false,
+          error: 'Please provide remarks explaining why hours are being restored.'
+        };
+      }
+    }
+
     // Check for overlapping CTO dates (exclude current one being edited)
     const allLedgerDocs = db.getDocuments('ledger');
     for (let i = 0; i < allLedgerDocs.length; i++) {
@@ -2354,6 +2366,12 @@ function updateCto_SERVER(data) {
 
     const newBalance = availableBalance - newHoursUsed;
 
+    // Prepare remarks - include restore remarks if hours were restored
+    let ledgerRemarks = data.remarks || `CTO updated on ${new Date().toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`;
+    if (hoursBeingRestored > 0 && data.restoreRemarks) {
+      ledgerRemarks += `\n\n[Hours Restored: ${hoursBeingRestored.toFixed(2)} hrs] ${data.restoreRemarks}`;
+    }
+
     // Update the ledger entry - preserve all original fields
     const updatedLedgerData = Object.assign({}, oldLedger, {
       transactionDate: filingDate.toISOString(),
@@ -2364,7 +2382,7 @@ function updateCto_SERVER(data) {
       inclusiveDateTo: dateTo.toISOString(),
       dayBreakdown: data.dayBreakdown || {},
       deductedFrom: batchInfo, // Store FIFO deduction info
-      remarks: data.remarks || `CTO updated on ${new Date().toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
+      remarks: ledgerRemarks,
       updatedAt: new Date().toISOString()
     });
 

@@ -666,12 +666,26 @@
                   </div>
                 </div>
 
+                <!-- Restore Remarks Section (shown only when reducing hours) -->
+                <div id="cto-restore-remarks-section" style="display: none;" class="mb-3">
+                  <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>You are reducing hours, which will restore hours back to COC batches.</strong>
+                    <p class="mb-2 mt-2 small">Please provide remarks explaining why hours are being restored:</p>
+                    <textarea class="form-control" id="cto-restore-remarks" rows="3" placeholder="e.g., Correcting over-deduction, Date range adjustment, etc."></textarea>
+                    <div id="cto-restore-remarks-error" class="text-danger small mt-1" style="display: none;">
+                      <i class="bi bi-exclamation-circle"></i> Remarks are required when restoring hours.
+                    </div>
+                  </div>
+                </div>
+
                 <div class="mb-3">
                   <div class="alert alert-info">
                     <strong><i class="bi bi-wallet2"></i> Available Balance: <span id="cto-available-balance">0.00</span> hours</strong>
                   </div>
                 </div>
                 <input type="hidden" id="cto-hours" value="0">
+                <input type="hidden" id="cto-original-hours" value="0">
                 <button type="submit" class="btn btn-primary" id="cto-submit-btn">
                   <span class="btn-text"><i class="bi bi-check-circle"></i> <span id="cto-submit-text">Log CTO</span></span>
                   <span class="spinner-border spinner-border-sm d-none ms-2" role="status">
