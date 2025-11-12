@@ -16,7 +16,7 @@ const FIREBASE_CONFIG = {
 };
 
 // Certificate Template Spreadsheet
-const CERTIFICATE_TEMPLATE_ID = '1yhFTgHujjncfoM8chjULiSrv_Bq7rMPKZGzM9j4lfwU';
+const CERTIFICATE_TEMPLATE_ID = '12j7SZEwR5J78HMAbDn0-Nbg5DEYuRngsH1vCDnCln9E';
 
 // ============================
 // JWT TOKEN CREATION
