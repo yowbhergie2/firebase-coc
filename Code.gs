@@ -1658,9 +1658,36 @@ function generateOvertimeSummaryPDF(data) {
 function logCto_SERVER(data) {
   try {
     const db = getFirestore();
-    
+
     const hoursUsed = parseFloat(data.hoursUsed);
-    
+    const dateFrom = new Date(data.dateFrom);
+    const dateTo = new Date(data.dateTo);
+
+    // Check for overlapping CTO dates
+    const ledgerDocs = db.getDocuments('ledger');
+    for (let i = 0; i < ledgerDocs.length; i++) {
+      const ledgerDoc = ledgerDocs[i].obj;
+      if (!ledgerDoc ||
+          ledgerDoc.employeeId !== data.employeeId ||
+          ledgerDoc.transactionType !== 'Used' ||
+          ledgerDoc.status === 'Cancelled') {
+        continue;
+      }
+
+      if (ledgerDoc.inclusiveDateFrom && ledgerDoc.inclusiveDateTo) {
+        const existingFrom = new Date(ledgerDoc.inclusiveDateFrom);
+        const existingTo = new Date(ledgerDoc.inclusiveDateTo);
+
+        // Check if dates overlap
+        if ((dateFrom <= existingTo && dateTo >= existingFrom)) {
+          return {
+            success: false,
+            error: `Date overlap detected! You already have a CTO application from ${existingFrom.toLocaleDateString('en-US', {timeZone: 'Asia/Manila'})} to ${existingTo.toLocaleDateString('en-US', {timeZone: 'Asia/Manila'})}.`
+          };
+        }
+      }
+    }
+
     const batchDocs = db.getDocuments('creditBatches');
     let availableBalance = 0;
     const batches = [];
@@ -2051,6 +2078,37 @@ function updateCto_SERVER(data) {
     const oldHoursUsed = Math.abs(oldLedger.hoursChange);
     const newHoursUsed = parseFloat(data.hoursUsed);
 
+    const dateFrom = new Date(data.dateFrom);
+    const dateTo = new Date(data.dateTo);
+
+    // Check for overlapping CTO dates (exclude current one being edited)
+    const allLedgerDocs = db.getDocuments('ledger');
+    for (let i = 0; i < allLedgerDocs.length; i++) {
+      const otherLedger = allLedgerDocs[i].obj;
+      const otherLedgerId = allLedgerDocs[i].name.split('/').pop();
+
+      if (!otherLedger ||
+          otherLedgerId === data.ledgerId || // Exclude current one
+          otherLedger.employeeId !== data.employeeId ||
+          otherLedger.transactionType !== 'Used' ||
+          otherLedger.status === 'Cancelled') {
+        continue;
+      }
+
+      if (otherLedger.inclusiveDateFrom && otherLedger.inclusiveDateTo) {
+        const existingFrom = new Date(otherLedger.inclusiveDateFrom);
+        const existingTo = new Date(otherLedger.inclusiveDateTo);
+
+        // Check if dates overlap
+        if ((dateFrom <= existingTo && dateTo >= existingFrom)) {
+          return {
+            success: false,
+            error: `Date overlap detected! You already have a CTO application from ${existingFrom.toLocaleDateString('en-US', {timeZone: 'Asia/Manila'})} to ${existingTo.toLocaleDateString('en-US', {timeZone: 'Asia/Manila'})}.`
+          };
+        }
+      }
+    }
+
     // Step 1: Restore hours from the old CTO (reverse the original deduction)
     // We need to restore hours back to credit batches using FIFO
     const batchDocs = db.getDocuments('creditBatches');
@@ -2101,6 +2159,28 @@ function updateCto_SERVER(data) {
       }
       return monthA - monthB;
     });
+
+    // Check if any batches that would receive restored hours are expired
+    const nowManilaStr = Utilities.formatDate(new Date(), 'Asia/Manila', 'yyyy-MM-dd');
+    const todayManila = new Date(nowManilaStr);
+    todayManila.setHours(0, 0, 0, 0);
+
+    let tempRestore = oldHoursUsed;
+    for (let i = 0; i < batches.length && tempRestore > 0; i++) {
+      const batch = batches[i];
+      if (batch.data.expiryDate) {
+        const expiryDate = new Date(batch.data.expiryDate);
+        expiryDate.setHours(0, 0, 0, 0);
+
+        if (todayManila > expiryDate) {
+          return {
+            success: false,
+            error: 'Cannot update CTO: One or more COC batches have already expired. Expired COCs cannot receive restored hours.'
+          };
+        }
+      }
+      tempRestore -= Math.min(batch.data.remainingHours || 0, tempRestore);
+    }
 
     // Restore hours to batches
     let remainingToRestore = oldHoursUsed;

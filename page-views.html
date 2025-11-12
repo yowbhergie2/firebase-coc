@@ -627,7 +627,10 @@
                   </div>
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Date of Filing <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" id="cto-filing-date" onchange="enableInclusiveDates()" required>
+                    <input type="date" class="form-control" id="cto-filing-date" onchange="validateFilingDate(); enableInclusiveDates();" required>
+                    <div id="cto-filing-date-error" class="text-danger small mt-1" style="display: none;">
+                      <i class="bi bi-exclamation-circle"></i> Filing date cannot be in the future
+                    </div>
                   </div>
                 </div>
                 <div class="row">

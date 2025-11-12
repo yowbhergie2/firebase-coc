@@ -3698,6 +3698,25 @@
     });
 
     // CTO Day Breakdown Functions
+    // Validate filing date is not in the future
+    window.validateFilingDate = function() {
+      const filingDateInput = document.getElementById('cto-filing-date');
+      const errorDiv = document.getElementById('cto-filing-date-error');
+      const filingDate = new Date(filingDateInput.value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (filingDate > today) {
+        filingDateInput.classList.add('is-invalid');
+        errorDiv.style.display = 'block';
+        return false;
+      } else {
+        filingDateInput.classList.remove('is-invalid');
+        errorDiv.style.display = 'none';
+        return true;
+      }
+    };
+
     // Enable inclusive date fields when filing date is selected
     window.enableInclusiveDates = function() {
       const filingDate = document.getElementById('cto-filing-date').value;
@@ -4154,6 +4173,12 @@
 
     document.getElementById('ctoForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      // Validation: Filing date cannot be in the future
+      if (!validateFilingDate()) {
+        Modal.error('Invalid Filing Date', 'Filing date cannot be in the future.');
+        return;
+      }
 
       const ledgerId = document.getElementById('cto-ledger-id').value;
       const isEdit = ledgerId !== '';
