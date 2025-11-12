@@ -1569,10 +1569,11 @@ function generateOvertimeSummaryPDF(data) {
 
     // Footer note
     tempSheet.getRange(currentRow, 1, 1, 8).merge()
-      .setValue('This summary is automatically generated with the Compensatory Overtime Credit (COC) and Compensatory Time-Off (CTO) Management System.')
+      .setValue('This summary is automatically generated with the\nCompensatory Overtime Credit (COC) and Compensatory Time-Off (CTO) Management System.')
       .setFontSize(9)
       .setFontStyle('italic')
-      .setHorizontalAlignment('center');
+      .setHorizontalAlignment('center')
+      .setWrap(true);
 
     // Hide gridlines
     tempSheet.setHiddenGridlines(true);
