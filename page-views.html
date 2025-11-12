@@ -615,8 +615,11 @@
               <label class="form-label">Remarks</label>
               <textarea class="form-control" id="cto-remarks" rows="2"></textarea>
             </div>
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-check-circle"></i> Log CTO
+            <button type="submit" class="btn btn-primary" id="cto-submit-btn">
+              <span class="btn-text"><i class="bi bi-check-circle"></i> Log CTO</span>
+              <span class="spinner-border spinner-border-sm d-none ms-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </span>
             </button>
           </form>
         </div>
@@ -688,8 +691,11 @@
                 <input type="number" class="form-control" id="config-expiry-months" value="12">
               </div>
             </div>
-            <button type="submit" class="btn btn-primary">
-              <i class="bi bi-save"></i> Save Configuration
+            <button type="submit" class="btn btn-primary" id="config-submit-btn">
+              <span class="btn-text"><i class="bi bi-save"></i> Save Configuration</span>
+              <span class="spinner-border spinner-border-sm d-none ms-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </span>
             </button>
           </form>
         </div>
