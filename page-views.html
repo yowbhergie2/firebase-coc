@@ -1240,4 +1240,292 @@
         </div>
       </div>
     </div>
+
+    <!-- ============================================ -->
+    <!-- HELP & INSTRUCTIONS PAGE -->
+    <!-- ============================================ -->
+    <div id="page-help" class="page-view">
+      <h2 class="page-title"><i class="bi bi-question-circle"></i> Help & Instructions</h2>
+
+      <!-- About This System -->
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-info-circle"></i> About This System</h5>
+        </div>
+        <div class="card-body">
+          <h6 class="fw-bold">CompTime Tracker - COC Management System</h6>
+          <p class="mb-2">
+            This system is designed to manage <strong>Compensatory Overtime Credits (COC)</strong> for employees.
+            It tracks overtime work, generates certificates, and manages CTO (Compensatory Time Off) applications
+            with full audit trails and expiry management.
+          </p>
+          <p class="mb-0">
+            <strong>Key Features:</strong>
+          </p>
+          <ul class="mb-0">
+            <li>Overtime logging and certification</li>
+            <li>Automatic COC expiry tracking (1 year from issuance)</li>
+            <li>CTO application with FIFO (First In, First Out) deduction</li>
+            <li>Employee ledger with complete transaction history</li>
+            <li>Professional Excel export for reporting</li>
+            <li>Real-time dashboard and alerts</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Quick Start Guide -->
+      <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-play-circle"></i> Quick Start Guide</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h6 class="fw-bold text-primary">1. Add Employees</h6>
+              <p class="small">Go to <strong>Employees</strong> menu → Click <strong>Add Employee</strong> → Fill in employee details (First Name, Last Name, Office, Position)</p>
+
+              <h6 class="fw-bold text-primary mt-3">2. Log Overtime</h6>
+              <p class="small">Go to <strong>COC → Log Overtime</strong> → Select employee and month/year → Enter overtime details (Date, Day Type, Time In/Out) → Save</p>
+
+              <h6 class="fw-bold text-primary mt-3">3. Generate COC Certificate</h6>
+              <p class="small">Go to <strong>COC → Generate Certificate</strong> → Select employee and month → Click "Generate Certificate" → Certificate with PDF will be created</p>
+            </div>
+            <div class="col-md-6">
+              <h6 class="fw-bold text-primary">4. Apply for CTO</h6>
+              <p class="small">Go to <strong>COC → CTO Application</strong> → Select employee and filing date → Choose inclusive dates → Select whole or half day per date → Submit</p>
+
+              <h6 class="fw-bold text-primary mt-3">5. View Employee Ledger</h6>
+              <p class="small">Go to <strong>COC → View Employee Ledger</strong> → Select employee → View all transactions (COC earned and CTO used) → Export to Excel</p>
+
+              <h6 class="fw-bold text-primary mt-3">6. Check Dashboard</h6>
+              <p class="small">The <strong>Dashboard</strong> shows: Total COC hours, Active employees, Uncertified logs, and COC expiring in 30 days</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Instructions -->
+      <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="bi bi-book"></i> Detailed Instructions</h5>
+        </div>
+        <div class="card-body">
+          <div class="accordion" id="helpAccordion">
+
+            <!-- Managing Employees -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEmployees">
+                  <i class="bi bi-people-fill me-2"></i> Managing Employees
+                </button>
+              </h2>
+              <div id="collapseEmployees" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                <div class="accordion-body">
+                  <p><strong>Adding Employees:</strong></p>
+                  <ol>
+                    <li>Click <strong>Employees</strong> in the navigation menu</li>
+                    <li>Click the <strong>Add Employee</strong> button</li>
+                    <li>Fill in: First Name, Last Name, Middle Name (optional), Suffix (optional)</li>
+                    <li>Select Office and Position from dropdowns</li>
+                    <li>Set Status (Active/Inactive)</li>
+                    <li>Click <strong>Save</strong></li>
+                  </ol>
+                  <p><strong>Editing Employees:</strong> Click the pencil icon next to the employee name, modify details, and save.</p>
+                  <p><strong>Note:</strong> Employee IDs are auto-generated (e.g., EMP_001, EMP_002)</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Logging Overtime -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOvertime">
+                  <i class="bi bi-clock-history me-2"></i> Logging Overtime
+                </button>
+              </h2>
+              <div id="collapseOvertime" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                <div class="accordion-body">
+                  <ol>
+                    <li>Go to <strong>COC → Log Overtime</strong></li>
+                    <li>Select the employee from the dropdown</li>
+                    <li>Choose the Month and Year</li>
+                    <li>Click <strong>Add Entry</strong> for each overtime day</li>
+                    <li>Fill in: Date, Day Type (Regular/Weekend/Holiday), Time In/Out (AM and PM)</li>
+                    <li>System automatically calculates total hours and COC earned</li>
+                    <li>Click <strong>Save All Entries</strong></li>
+                  </ol>
+                  <p><strong>Important:</strong> Overtime logs must be certified before COC can be used!</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Generating Certificates -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCertificate">
+                  <i class="bi bi-file-earmark-check me-2"></i> Generating COC Certificates
+                </button>
+              </h2>
+              <div id="collapseCertificate" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                <div class="accordion-body">
+                  <p><strong>By Employee (Individual):</strong></p>
+                  <ol>
+                    <li>Go to <strong>COC → Generate Certificate → By Employee</strong> tab</li>
+                    <li>Select employee from dropdown</li>
+                    <li>Uncertified months will appear automatically</li>
+                    <li>Click "Generate" next to the month</li>
+                    <li>Enter Date of Issuance (usually first day of following month)</li>
+                    <li>Click <strong>Generate Certificate & PDF</strong></li>
+                    <li>PDF and summary will be generated automatically</li>
+                  </ol>
+                  <p><strong>By Batch (Multiple Employees):</strong></p>
+                  <ol>
+                    <li>Go to <strong>COC → Generate Certificate → By Batch</strong> tab</li>
+                    <li>Select Month and Year</li>
+                    <li>Click <strong>Load Employees</strong></li>
+                    <li>Check the employees you want to generate certificates for</li>
+                    <li>Enter Date of Issuance</li>
+                    <li>Click <strong>Generate Selected Certificates</strong></li>
+                  </ol>
+                  <p><strong>Note:</strong> Generated certificates are valid for 1 year from date of issuance. COC expires after this period!</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- CTO Application -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCTO">
+                  <i class="bi bi-calendar-check me-2"></i> CTO Application
+                </button>
+              </h2>
+              <div id="collapseCTO" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                <div class="accordion-body">
+                  <p><strong>Filing a CTO Application:</strong></p>
+                  <ol>
+                    <li>Go to <strong>COC → CTO Application → Log CTO Application</strong> tab</li>
+                    <li>Select employee and filing date</li>
+                    <li>System shows available COC balance</li>
+                    <li>Select inclusive dates (From - To)</li>
+                    <li>For each date, choose: Whole Day (8 hrs) or Half Day (4 hrs)</li>
+                    <li>System calculates total hours to be used</li>
+                    <li>Click <strong>Log CTO</strong></li>
+                  </ol>
+                  <p><strong>Important:</strong> System uses FIFO (First In, First Out) - oldest COC is used first!</p>
+                  <p><strong>Editing a CTO:</strong> Go to <strong>List of CTO Applications</strong> tab → Click pencil icon → Modify hours → Update</p>
+                  <p><strong>Cancelling a CTO:</strong> Go to <strong>List of CTO Applications</strong> tab → Click X icon → Enter reason → Confirm</p>
+                  <p class="mb-0"><strong>Note:</strong> When cancelling, hours are restored to the same COC batches. If COC expired, hours are forfeited!</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Employee Ledger -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLedger">
+                  <i class="bi bi-journal-text me-2"></i> Employee Ledger
+                </button>
+              </h2>
+              <div id="collapseLedger" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                <div class="accordion-body">
+                  <ol>
+                    <li>Go to <strong>COC → View Employee Ledger</strong></li>
+                    <li>Select employee from dropdown</li>
+                    <li>View complete transaction history:
+                      <ul>
+                        <li><strong>Earned:</strong> COC certificates issued</li>
+                        <li><strong>Used:</strong> CTO applications filed</li>
+                        <li><strong>Balance:</strong> Running balance after each transaction</li>
+                      </ul>
+                    </li>
+                    <li>Click <strong>Export to Excel</strong> for formatted report</li>
+                  </ol>
+                  <p><strong>View Details:</strong> Click "View" button next to any transaction to see complete details including deductions from specific COC batches.</p>
+                  <p class="mb-0"><strong>Cancelled CTOs:</strong> Shown with red "CANCELLED" badge and yellow background</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Reports & Dashboard -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseReports">
+                  <i class="bi bi-bar-chart-line me-2"></i> Reports & Dashboard
+                </button>
+              </h2>
+              <div id="collapseReports" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                <div class="accordion-body">
+                  <p><strong>Dashboard:</strong> Shows real-time statistics:</p>
+                  <ul>
+                    <li><strong>Total COC:</strong> Sum of all active COC hours</li>
+                    <li><strong>Active Employees:</strong> Number of employees with active status</li>
+                    <li><strong>Uncertified Logs:</strong> Overtime entries not yet certified</li>
+                    <li><strong>Expiring in 30 Days:</strong> COC hours expiring soon</li>
+                  </ul>
+                  <p><strong>Reports Page:</strong> Generate various reports:</p>
+                  <ul>
+                    <li>Summary of COC Balances per Employee</li>
+                    <li>CTO Applications Report</li>
+                    <li>Expiring Credits Report</li>
+                  </ul>
+                  <p class="mb-0"><strong>Excel Export:</strong> All reports can be exported to Excel for printing or sharing</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- System Configuration -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseConfig">
+                  <i class="bi bi-gear-fill me-2"></i> System Configuration
+                </button>
+              </h2>
+              <div id="collapseConfig" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                <div class="accordion-body">
+                  <p><strong>Libraries (Master → Libraries):</strong></p>
+                  <ul>
+                    <li><strong>Offices:</strong> Add/Edit/Delete office names</li>
+                    <li><strong>Positions:</strong> Add/Edit/Delete position titles</li>
+                  </ul>
+                  <p><strong>Signatory (Master → System Configuration):</strong></p>
+                  <ul>
+                    <li>Set the name and position of the signatory for certificates</li>
+                    <li>This appears on all generated COC certificates</li>
+                  </ul>
+                  <p><strong>Historical Balance (Master → Historical Balance):</strong></p>
+                  <ul>
+                    <li>Add COC balances from previous system (migration)</li>
+                    <li>Required for employees with existing COC before system implementation</li>
+                  </ul>
+                  <p><strong>Holidays (Master → System Configuration):</strong></p>
+                  <ul>
+                    <li>Add regular and special non-working holidays</li>
+                    <li>Set as recurring for annual holidays (e.g., New Year, Christmas)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Important Reminders -->
+      <div class="card">
+        <div class="card-header bg-warning">
+          <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Important Reminders</h5>
+        </div>
+        <div class="card-body">
+          <ul class="mb-0">
+            <li><strong>COC Validity:</strong> All COC certificates are valid for 1 year from date of issuance. After expiry, unused hours are forfeited.</li>
+            <li><strong>FIFO Deduction:</strong> System automatically uses oldest COC first when filing CTO applications.</li>
+            <li><strong>Certification Required:</strong> Overtime logs must be certified (generate certificate) before COC can be used for CTO.</li>
+            <li><strong>Cancellation:</strong> When cancelling CTO, hours are restored to original COC batches. If expired, hours are NOT restored.</li>
+            <li><strong>Data Backup:</strong> Regularly export employee ledgers for backup and record-keeping.</li>
+            <li><strong>Date Format:</strong> System uses MM/DD/YYYY format for date entry and display.</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
   </div>
