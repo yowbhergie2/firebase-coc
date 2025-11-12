@@ -634,6 +634,9 @@
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Inclusive Date From <span class="text-danger">*</span></label>
                     <input type="date" class="form-control" id="cto-date-from" onchange="generateDayBreakdown()" disabled required>
+                    <div id="cto-date-from-error" class="text-danger small mt-1" style="display: none;">
+                      <i class="bi bi-exclamation-circle"></i> Date of Filing cannot be later than Inclusive Date From
+                    </div>
                   </div>
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Inclusive Date To <span class="text-danger">*</span></label>

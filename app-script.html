@@ -3607,10 +3607,14 @@
       const filingDate = document.getElementById('cto-filing-date').value;
       const dateFrom = document.getElementById('cto-date-from').value;
       const dateTo = document.getElementById('cto-date-to').value;
+      const dateFromField = document.getElementById('cto-date-from');
+      const dateFromError = document.getElementById('cto-date-from-error');
       const dateToField = document.getElementById('cto-date-to');
       const dateToError = document.getElementById('cto-date-to-error');
 
-      // Clear previous error state
+      // Clear previous error states
+      dateFromField.classList.remove('is-invalid');
+      dateFromError.style.display = 'none';
       dateToField.classList.remove('is-invalid');
       dateToError.style.display = 'none';
 
@@ -3625,7 +3629,8 @@
 
       // Validation: Date of Filing should not be later than Inclusive Date From
       if (filing > start) {
-        Modal.error('Invalid Dates', 'Date of Filing cannot be later than Inclusive Date From');
+        dateFromField.classList.add('is-invalid');
+        dateFromError.style.display = 'block';
         document.getElementById('cto-day-breakdown-section').style.display = 'none';
         return;
       }
@@ -3646,7 +3651,9 @@
         return;
       }
 
-      // All validations passed - ensure error is cleared
+      // All validations passed - ensure errors are cleared
+      dateFromField.classList.remove('is-invalid');
+      dateFromError.style.display = 'none';
       dateToField.classList.remove('is-invalid');
       dateToError.style.display = 'none';
 
