@@ -979,6 +979,9 @@
           <div class="alert-item warning">
             <i class="bi bi-exclamation-triangle-fill"></i>
             <strong>Expiring Credits:</strong> ${expiringSoon.toFixed(2)} hours will expire in the next 30 days
+            <button class="btn btn-sm btn-outline-warning ms-2" onclick="viewExpiringCreditsDetails()">
+              <i class="bi bi-eye"></i> View Details
+            </button>
           </div>
         `;
       }
@@ -997,6 +1000,89 @@
       }
 
       container.innerHTML = html;
+    }
+
+    window.viewExpiringCreditsDetails = async function() {
+      const modal = new bootstrap.Modal(document.getElementById('expiringCreditsModal'));
+      const modalBody = document.getElementById('expiringCreditsModalBody');
+      const modalTotal = document.getElementById('expiringCreditsModalTotal');
+
+      modalBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
+      modal.show();
+
+      try {
+        const today = new Date();
+        const thirtyDays = new Date(today);
+        thirtyDays.setDate(today.getDate() + 30);
+
+        // Query active credit batches expiring within 30 days
+        const batchesQ = query(
+          collection(db, 'creditBatches'),
+          where('status', '==', 'Active'),
+          where('expiryDate', '<=', thirtyDays.toISOString())
+        );
+
+        const snapshot = await getDocs(batchesQ);
+
+        if (snapshot.empty) {
+          modalBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No expiring credits found</td></tr>';
+          modalTotal.textContent = '0.0';
+          return;
+        }
+
+        // Fetch employee data to get names and offices
+        const employeesSnapshot = await getDocs(collection(db, 'employees'));
+        const employeesMap = {};
+        employeesSnapshot.forEach(doc => {
+          employeesMap[doc.id] = doc.data();
+        });
+
+        // Build array of expiring batches with employee details
+        const expiringBatches = [];
+        let totalExpiring = 0;
+
+        snapshot.forEach(doc => {
+          const batch = doc.data();
+          const employee = employeesMap[batch.employeeId];
+          const expiryDate = new Date(batch.expiryDate);
+
+          expiringBatches.push({
+            employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown',
+            office: employee ? employee.office : 'N/A',
+            earnedPeriod: `${getMonthName(batch.earnedMonth)} ${batch.earnedYear}`,
+            expiryDate: expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            expiryDateSort: expiryDate,
+            remainingHours: batch.remainingHours
+          });
+
+          totalExpiring += batch.remainingHours;
+        });
+
+        // Sort by expiry date (earliest first)
+        expiringBatches.sort((a, b) => a.expiryDateSort - b.expiryDateSort);
+
+        // Render table
+        modalBody.innerHTML = expiringBatches.map(batch => `
+          <tr>
+            <td>${batch.employeeName}</td>
+            <td>${batch.office}</td>
+            <td>${batch.earnedPeriod}</td>
+            <td><span class="badge bg-danger">${batch.expiryDate}</span></td>
+            <td><strong>${batch.remainingHours.toFixed(1)}</strong> hrs</td>
+          </tr>
+        `).join('');
+
+        modalTotal.textContent = totalExpiring.toFixed(1);
+
+      } catch (error) {
+        console.error('Error loading expiring credits:', error);
+        modalBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>';
+      }
+    };
+
+    function getMonthName(monthIndex) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return months[monthIndex];
     }
 
     function loadHolidays() {
@@ -1473,7 +1559,7 @@
       // Reset table and message
       tableSection.style.display = 'none';
       noEmployeesDiv.style.display = 'none';
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center">Select month and year, then click Load</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center">Select month and year, then click Load</td></tr>';
 
       // Reset date inputs
       batchDateInput.value = '';
@@ -1531,6 +1617,11 @@
               <td>${emp.office}</td>
               <td><strong>${emp.totalHours.toFixed(1)}</strong> hrs</td>
               <td>${emp.entriesCount}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewMonthEntries('${emp.employeeId}', ${month}, ${year})">
+                  <i class="bi bi-eye"></i> View
+                </button>
+              </td>
             </tr>
           `).join('');
           tableSection.style.display = 'block';
