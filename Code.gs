@@ -887,18 +887,26 @@ function generateCOCCertificate_SERVER(data) {
       db.updateDocument('overtimeLogs/' + log.logId, updateData);
     });
 
-    // Create credit batch
+    // Create credit batch with standardized fields
+    const monthYearStr = `${data.year}-${String(data.month + 1).padStart(2, '0')}`;
     const batchData = {
       batchId: batchId,
       employeeId: data.employeeId,
       certificateId: certificateId,
+      source: 'Certificate',
+      initialHours: totalEarnedHours,
       earnedHours: totalEarnedHours,
+      usedHours: 0,
       remainingHours: totalEarnedHours,
+      earnedMonth: data.month + 1,
+      earnedYear: data.year,
+      monthYear: monthYearStr,
       issueDate: dateOfIssuance.toISOString(),
       expiryDate: validUntil.toISOString(),
       status: 'Active',
       isHistorical: false,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      createdBy: Session.getActiveUser().getEmail()
     };
 
     db.createDocument('creditBatches/' + batchId, batchData);
