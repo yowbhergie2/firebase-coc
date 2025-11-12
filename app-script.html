@@ -3721,14 +3721,15 @@
     window.editHoliday = async function(holidayId) {
       try {
         const db = getFirestore();
-        const doc = await getDoc(doc(db, 'holidays', holidayId));
+        const docRef = doc(db, 'holidays', holidayId);
+        const docSnap = await getDoc(docRef);
 
-        if (!doc.exists()) {
+        if (!docSnap.exists()) {
           Modal.error('Error', 'Holiday not found');
           return;
         }
 
-        const hol = doc.data();
+        const hol = docSnap.data();
 
         // Populate form with existing data
         document.getElementById('hol-id').value = holidayId;
