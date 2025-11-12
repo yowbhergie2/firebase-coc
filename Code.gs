@@ -1136,26 +1136,40 @@ function getSignatoryConfig() {
 }
 
 // Helper function to convert sheet to PDF with proper settings
+
+// ============================
+// PDF CONVERSION FUNCTION (FIXED)
+// ============================
+
+/**
+ * Convert a specific sheet to PDF
+ * @param {Spreadsheet} spreadsheet - The spreadsheet object
+ * @param {Sheet} sheet - The sheet to convert
+ * @returns {Blob} PDF blob
+ */
 function convertSheetToPDF(spreadsheet, sheet) {
   const sheetId = sheet.getSheetId();
   const spreadsheetId = spreadsheet.getId();
 
-  // ISSUE 2 & 3 FIX: Build export URL with optimized parameters for balanced layout
+  // Build export URL
   const url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export' +
     '?format=pdf' +
-    '&size=a4' +              // A4 paper size
-    '&portrait=true' +        // Portrait orientation
-    '&fitw=true' +            // Fit to page width
-    '&sheetnames=false' +     // Don't show sheet names
-    '&printtitle=false' +     // Don't show title
-    '&pagenumbers=false' +    // Don't show page numbers
-    '&gridlines=false' +      // Don't show gridlines
-    '&fzr=false' +            // Don't repeat frozen rows
-    '&gid=' + sheetId +       // Specific sheet ID
-    '&scale=2' +              // Fit to width (better for balanced layout than scale=4)
-    '&horizontal_alignment=CENTER' +  // Center content horizontally
-    '&vertical_alignment=TOP';        // Align content to top
+    '&gid=' + sheetId +
+    '&size=A4' +
+    '&portrait=true' +
+    '&scale=4' +  // Scale to fit (1=normal, 2=fit to width, 3=fit to height, 4=fit to page)
+    '&top_margin=0.3' +
+    '&bottom_margin=0.3' +
+    '&left_margin=0.3' +
+    '&right_margin=0.3' +
+    '&gridlines=false' +
+    '&printtitle=false' +
+    '&sheetnames=false' +
+    '&pagenum=false' +
+    '&horizontal_alignment=CENTER' +
+    '&vertical_alignment=TOP';
 
+  // Fetch PDF
   const token = ScriptApp.getOAuthToken();
   const response = UrlFetchApp.fetch(url, {
     headers: {
@@ -1163,10 +1177,18 @@ function convertSheetToPDF(spreadsheet, sheet) {
     }
   });
 
-  return response.getBlob().setName(sheet.getName() + '.pdf');
+  return response.getBlob();
 }
 
-// Helper function to generate PDF certificate
+// ============================
+// CERTIFICATE PDF GENERATION (FIXED)
+// ============================
+
+/**
+ * Generate PDF certificate from template
+ * @param {Object} data - Certificate data
+ * @returns {Object} PDF URL and ID
+ */
 function generateCertificatePDF(data) {
   try {
     const ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
@@ -1189,9 +1211,22 @@ function generateCertificatePDF(data) {
     const position = (data.employee.position || '').toUpperCase();
     const office = (data.employee.office || '').toUpperCase();
     const totalHours = data.totalHours.toFixed(1);
-    // ISSUE 1 FIX: Use 'MMMM d, yyyy' format to get "September 1, 2025" instead of "September 01, 2025"
-    const dateIssued = Utilities.formatDate(data.dateOfIssuance, Session.getScriptTimeZone(), 'MMMM d, yyyy');
-    const validUntil = Utilities.formatDate(data.validUntil, Session.getScriptTimeZone(), 'MMMM d, yyyy');
+    
+    // Format dates using Asia/Manila timezone
+    const dateIssued = Utilities.formatDate(data.dateOfIssuance, 'Asia/Manila', 'M/d/yyyy');
+    const validUntil = Utilities.formatDate(data.validUntil, 'Asia/Manila', 'M/d/yyyy');
+
+    // Ensure the sheet has enough columns (at least 6 columns = F)
+    const maxColumns = tempSheet.getMaxColumns();
+    if (maxColumns < 6) {
+      tempSheet.insertColumnsAfter(maxColumns, 6 - maxColumns);
+    }
+
+    // Ensure the sheet has enough rows (at least 44 rows)
+    const maxRows = tempSheet.getMaxRows();
+    if (maxRows < 44) {
+      tempSheet.insertRowsAfter(maxRows, 44 - maxRows);
+    }
 
     // Fill in TOP certificate (rows 1-23)
     tempSheet.getRange(4, 5).setValue(employeeName);      // E4: Employee Name
@@ -1213,40 +1248,13 @@ function generateCertificatePDF(data) {
     tempSheet.getRange(43, 4).setValue(dateIssued);       // D43: Date Issued
     tempSheet.getRange(44, 4).setValue(validUntil);       // D44: Valid Until
 
-    // ISSUE 2 & 3 FIX: Set optimal column widths for better page utilization and logo positioning
-    // These widths are optimized for A4 portrait with proper spacing
-    tempSheet.setColumnWidth(1, 120);  // Column A - Left margin/logo space
-    tempSheet.setColumnWidth(2, 140);  // Column B - Position data
-    tempSheet.setColumnWidth(3, 80);   // Column C - Spacing
-    tempSheet.setColumnWidth(4, 140);  // Column D - Date fields
-    tempSheet.setColumnWidth(5, 180);  // Column E - Employee name
-    tempSheet.setColumnWidth(6, 140);  // Column F - Office/Signatory data
-
-    // ISSUE 4 FIX: Hide gridlines
+    // Hide gridlines for cleaner PDF
     tempSheet.setHiddenGridlines(true);
 
-    // ISSUE 2 FIX: Clean up extra rows and columns
-    const maxRow = tempSheet.getMaxRows();
-    const maxCol = tempSheet.getMaxColumns();
-
-    // Delete extra rows beyond row 44
-    if (maxRow > 44) {
-      tempSheet.deleteRows(45, maxRow - 44);
-    }
-
-    // Delete extra columns beyond column F (column 6)
-    if (maxCol > 6) {
-      tempSheet.deleteColumns(7, maxCol - 6);
-    }
-
-    // Set print area to A1:F44
-    tempSheet.getRange('A1:F44').activate();
-    ss.setNamedRange('Print_Area', tempSheet.getRange('A1:F44'));
-
-    // Flush all changes before PDF conversion
+    // CRITICAL: Flush all pending changes to the spreadsheet before converting to PDF
     SpreadsheetApp.flush();
 
-    // ISSUE 3 FIX: Convert to PDF with proper settings
+    // Convert to PDF
     const pdfBlob = convertSheetToPDF(ss, tempSheet);
 
     // Use employee name in format: "LastName, FirstName"
@@ -1259,7 +1267,6 @@ function generateCertificatePDF(data) {
 
     // Get year and month from date of issuance
     const year = data.dateOfIssuance.getFullYear();
-    const month = data.dateOfIssuance.getMonth() + 1; // 0-based to 1-based
     const monthNames = ['01-January', '02-February', '03-March', '04-April', '05-May', '06-June',
                        '07-July', '08-August', '09-September', '10-October', '11-November', '12-December'];
     const monthFolderName = monthNames[data.dateOfIssuance.getMonth()];
@@ -1300,6 +1307,7 @@ function generateCertificatePDF(data) {
     throw error;
   }
 }
+
 
 function logCto_SERVER(data) {
   try {
