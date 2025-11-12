@@ -2025,119 +2025,142 @@
 
     window.loadEmployeeLedger = async function() {
       const employeeId = document.getElementById('ledger-employee').value;
-      if (!employeeId) return;
+      const tbody = document.getElementById('ledgerTableBody');
 
-      const batchesQ = query(
-        collection(db, 'creditBatches'),
-        where('employeeId', '==', employeeId),
-        where('status', '==', 'Active')
-      );
+      if (!employeeId) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Select an employee</td></tr>';
+        return;
+      }
 
-      onSnapshot(batchesQ, (snapshot) => {
-        let balance = 0;
-        snapshot.forEach(doc => {
-          balance += Number(doc.data().remainingHours || 0);
+      // Show loading state
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading transactions...</td></tr>';
+
+      try {
+        const batchesQ = query(
+          collection(db, 'creditBatches'),
+          where('employeeId', '==', employeeId),
+          where('status', '==', 'Active')
+        );
+
+        onSnapshot(batchesQ, (snapshot) => {
+          let balance = 0;
+          snapshot.forEach(doc => {
+            balance += Number(doc.data().remainingHours || 0);
+          });
+          document.getElementById('ledger-balance').textContent = balance.toFixed(2);
+        }, (error) => {
+          console.error('Error loading balance:', error);
+          document.getElementById('ledger-balance').textContent = '0.00';
         });
-        document.getElementById('ledger-balance').textContent = balance.toFixed(2);
-      });
 
-      const ledgerQ = query(
-        collection(db, 'ledger'),
-        where('employeeId', '==', employeeId),
-        orderBy('transactionDate', 'desc')
-      );
+        const ledgerQ = query(
+          collection(db, 'ledger'),
+          where('employeeId', '==', employeeId),
+          orderBy('transactionDate', 'desc')
+        );
 
-      onSnapshot(ledgerQ, async (snapshot) => {
-        const tbody = document.getElementById('ledgerTableBody');
-        if (snapshot.empty) {
-          tbody.innerHTML = '<tr><td colspan="6" class="text-center">No transactions</td></tr>';
-          return;
-        }
+        onSnapshot(ledgerQ, async (snapshot) => {
+          try {
+            if (snapshot.empty) {
+              tbody.innerHTML = '<tr><td colspan="6" class="text-center">No transactions</td></tr>';
+              return;
+            }
 
-        // Build rows with async data fetching
-        const rows = [];
-        for (const docSnap of snapshot.docs) {
-          const ledger = docSnap.data();
-          const date = new Date(ledger.transactionDate);
+            // Build rows with async data fetching
+            const rows = [];
+            for (const docSnap of snapshot.docs) {
+              const ledger = docSnap.data();
+              const date = new Date(ledger.transactionDate);
 
-          let particularsHtml = '';
-          let earnedHtml = '—';
-          let usedHtml = '—';
-          let viewDetailsHtml = '<span class="text-muted">—</span>';
+              let particularsHtml = '';
+              let earnedHtml = '—';
+              let usedHtml = '—';
+              let viewDetailsHtml = '<span class="text-muted">—</span>';
 
-          if (ledger.transactionType === 'Earned') {
-            // Fetch batch details to get month/year
-            try {
-              let batchDoc;
-              // Try to get batch by referenceId (could be certificateId or batchId)
-              if (ledger.referenceId.startsWith('BATCH_')) {
-                batchDoc = await getDoc(doc(db, 'creditBatches', ledger.referenceId));
-              } else {
-                // Search for batch with this certificateId
-                const batchQ = query(
-                  collection(db, 'creditBatches'),
-                  where('certificateId', '==', ledger.referenceId),
-                  where('employeeId', '==', employeeId)
-                );
-                const batchSnap = await getDocs(batchQ);
-                if (!batchSnap.empty) {
-                  batchDoc = batchSnap.docs[0];
+              if (ledger.transactionType === 'Earned') {
+                // Fetch batch details to get month/year
+                try {
+                  let batchDoc;
+                  // Try to get batch by referenceId (could be certificateId or batchId)
+                  if (ledger.referenceId && ledger.referenceId.startsWith('BATCH_')) {
+                    batchDoc = await getDoc(doc(db, 'creditBatches', ledger.referenceId));
+                  } else if (ledger.referenceId) {
+                    // Search for batch with this certificateId
+                    const batchQ = query(
+                      collection(db, 'creditBatches'),
+                      where('certificateId', '==', ledger.referenceId),
+                      where('employeeId', '==', employeeId)
+                    );
+                    const batchSnap = await getDocs(batchQ);
+                    if (!batchSnap.empty) {
+                      batchDoc = batchSnap.docs[0];
+                    }
+                  }
+
+                  if (batchDoc && batchDoc.exists()) {
+                    const batch = batchDoc.data();
+                    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                       'July', 'August', 'September', 'October', 'November', 'December'];
+
+                    if (batch.source === 'Historical') {
+                      const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
+                      const year = batch.earnedYear || 'Unknown';
+                      particularsHtml = `<strong>Historical Balance</strong><br><small class="text-muted">${month} ${year}</small>`;
+                    } else {
+                      const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
+                      const year = batch.earnedYear || 'Unknown';
+                      particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${month} ${year}</small>`;
+                    }
+                  } else {
+                    particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId || 'N/A'}</small>`;
+                  }
+                } catch (error) {
+                  console.error('Error fetching batch details:', error);
+                  particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId || 'N/A'}</small>`;
                 }
-              }
-
-              if (batchDoc && batchDoc.exists()) {
-                const batch = batchDoc.data();
-                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                                   'July', 'August', 'September', 'October', 'November', 'December'];
-
-                if (batch.source === 'Historical') {
-                  const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
-                  const year = batch.earnedYear || 'Unknown';
-                  particularsHtml = `<strong>Historical Balance</strong><br><small class="text-muted">${month} ${year}</small>`;
+                earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
+              } else if (ledger.transactionType === 'Used') {
+                // CTO application
+                const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
+                  ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}`
+                  : '';
+                particularsHtml = `<strong>CTO Application</strong><br><small class="text-muted">${dateRange}</small>`;
+                usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
+                viewDetailsHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
+              } else {
+                particularsHtml = ledger.remarks || ledger.referenceId || 'N/A';
+                if (ledger.hoursChange >= 0) {
+                  earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
                 } else {
-                  const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
-                  const year = batch.earnedYear || 'Unknown';
-                  particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${month} ${year}</small>`;
+                  usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
                 }
-              } else {
-                particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
               }
-            } catch (error) {
-              console.error('Error fetching batch details:', error);
-              particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId}</small>`;
+
+              rows.push(`
+                <tr>
+                  <td>${date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</td>
+                  <td>${particularsHtml}</td>
+                  <td class="text-end">${earnedHtml}</td>
+                  <td class="text-end">${usedHtml}</td>
+                  <td class="text-end"><strong>${ledger.balanceAfter.toFixed(2)}</strong></td>
+                  <td class="text-center">${viewDetailsHtml}</td>
+                </tr>
+              `);
             }
-            earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
-          } else if (ledger.transactionType === 'Used') {
-            // CTO application
-            const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
-              ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}`
-              : '';
-            particularsHtml = `<strong>CTO Application</strong><br><small class="text-muted">${dateRange}</small>`;
-            usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
-            viewDetailsHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
-          } else {
-            particularsHtml = ledger.remarks || ledger.referenceId;
-            if (ledger.hoursChange >= 0) {
-              earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
-            } else {
-              usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
-            }
+
+            tbody.innerHTML = rows.join('');
+          } catch (error) {
+            console.error('Error rendering ledger:', error);
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading transactions. Please try again.</td></tr>';
           }
-
-          rows.push(`
-            <tr>
-              <td>${date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</td>
-              <td>${particularsHtml}</td>
-              <td class="text-end">${earnedHtml}</td>
-              <td class="text-end">${usedHtml}</td>
-              <td class="text-end"><strong>${ledger.balanceAfter.toFixed(2)}</strong></td>
-              <td class="text-center">${viewDetailsHtml}</td>
-            </tr>
-          `);
-        }
-
-        tbody.innerHTML = rows.join('');
-      });
+        }, (error) => {
+          console.error('Error loading ledger:', error);
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error: ' + error.message + '</td></tr>';
+        });
+      } catch (error) {
+        console.error('Error in loadEmployeeLedger:', error);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading data. Please try again.</td></tr>';
+      }
     };
 
     // Store the current balance listener so we can unsubscribe
