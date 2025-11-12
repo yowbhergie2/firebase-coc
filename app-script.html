@@ -2076,10 +2076,12 @@
           document.getElementById('ledger-balance').textContent = '0.00';
         });
 
+        // Query ledger with most recent transaction first (DESC order)
         const ledgerQ = query(
           collection(db, 'ledger'),
           where('employeeId', '==', employeeId),
-          orderBy('transactionDate', 'desc')
+          orderBy('transactionDate', 'desc'),
+          orderBy('createdAt', 'desc')
         );
 
         onSnapshot(ledgerQ, async (snapshot) => {
@@ -4326,15 +4328,15 @@
                   </tr>
                   <tr>
                     <th>Hours Earned</th>
-                    <td><strong class="text-success">${batch.totalHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-success">${(batch.totalHours || batch.earnedHours || batch.initialHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Hours Used</th>
-                    <td>${batch.usedHours ? batch.usedHours.toFixed(2) : '0.00'} hours</td>
+                    <td>${(batch.usedHours || 0).toFixed(2)} hours</td>
                   </tr>
                   <tr>
                     <th>Remaining Hours</th>
-                    <td><strong class="text-primary">${batch.remainingHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-primary">${(batch.remainingHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Certificate Date</th>
@@ -4460,15 +4462,15 @@
                   </tr>
                   <tr>
                     <th>Hours Carried Over</th>
-                    <td><strong class="text-info">${batch.totalHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-info">${(batch.totalHours || batch.earnedHours || batch.initialHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Hours Used</th>
-                    <td>${batch.usedHours ? batch.usedHours.toFixed(2) : '0.00'} hours</td>
+                    <td>${(batch.usedHours || 0).toFixed(2)} hours</td>
                   </tr>
                   <tr>
                     <th>Remaining Hours</th>
-                    <td><strong class="text-primary">${batch.remainingHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-primary">${(batch.remainingHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Recorded On</th>

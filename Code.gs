@@ -1707,11 +1707,11 @@ function logCto_SERVER(data) {
     // Sort batches by earned month/year (TRUE FIFO - oldest earned first)
     batches.sort((a, b) => {
       // Get year and month for batch A
-      let yearA = a.data.earnedYear || 9999;
-      let monthA = a.data.earnedMonth || 12;
+      let yearA = a.data.earnedYear;
+      let monthA = a.data.earnedMonth;
 
       // If not present, try parsing from monthYear field
-      if (yearA === 9999 && a.data.monthYear) {
+      if (!yearA && a.data.monthYear) {
         const parts = a.data.monthYear.split('-');
         if (parts.length === 2) {
           yearA = parseInt(parts[0]);
@@ -1719,16 +1719,42 @@ function logCto_SERVER(data) {
         }
       }
 
+      // If still not available, try parsing from issueDate or createdAt
+      if (!yearA) {
+        const dateStr = a.data.issueDate || a.data.dateOfIssuance || a.data.createdAt;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          yearA = date.getFullYear();
+          monthA = date.getMonth() + 1;
+        } else {
+          yearA = 9999;
+          monthA = 12;
+        }
+      }
+
       // Get year and month for batch B
-      let yearB = b.data.earnedYear || 9999;
-      let monthB = b.data.earnedMonth || 12;
+      let yearB = b.data.earnedYear;
+      let monthB = b.data.earnedMonth;
 
       // If not present, try parsing from monthYear field
-      if (yearB === 9999 && b.data.monthYear) {
+      if (!yearB && b.data.monthYear) {
         const parts = b.data.monthYear.split('-');
         if (parts.length === 2) {
           yearB = parseInt(parts[0]);
           monthB = parseInt(parts[1]);
+        }
+      }
+
+      // If still not available, try parsing from issueDate or createdAt
+      if (!yearB) {
+        const dateStr = b.data.issueDate || b.data.dateOfIssuance || b.data.createdAt;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          yearB = date.getFullYear();
+          monthB = date.getMonth() + 1;
+        } else {
+          yearB = 9999;
+          monthB = 12;
         }
       }
 
@@ -2140,11 +2166,11 @@ function updateCto_SERVER(data) {
     // Sort batches by earned month/year (TRUE FIFO - oldest earned first)
     batches.sort((a, b) => {
       // Get year and month for batch A
-      let yearA = a.data.earnedYear || 9999;
-      let monthA = a.data.earnedMonth || 12;
+      let yearA = a.data.earnedYear;
+      let monthA = a.data.earnedMonth;
 
       // If not present, try parsing from monthYear field
-      if (yearA === 9999 && a.data.monthYear) {
+      if (!yearA && a.data.monthYear) {
         const parts = a.data.monthYear.split('-');
         if (parts.length === 2) {
           yearA = parseInt(parts[0]);
@@ -2152,16 +2178,42 @@ function updateCto_SERVER(data) {
         }
       }
 
+      // If still not available, try parsing from issueDate or createdAt
+      if (!yearA) {
+        const dateStr = a.data.issueDate || a.data.dateOfIssuance || a.data.createdAt;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          yearA = date.getFullYear();
+          monthA = date.getMonth() + 1;
+        } else {
+          yearA = 9999;
+          monthA = 12;
+        }
+      }
+
       // Get year and month for batch B
-      let yearB = b.data.earnedYear || 9999;
-      let monthB = b.data.earnedMonth || 12;
+      let yearB = b.data.earnedYear;
+      let monthB = b.data.earnedMonth;
 
       // If not present, try parsing from monthYear field
-      if (yearB === 9999 && b.data.monthYear) {
+      if (!yearB && b.data.monthYear) {
         const parts = b.data.monthYear.split('-');
         if (parts.length === 2) {
           yearB = parseInt(parts[0]);
           monthB = parseInt(parts[1]);
+        }
+      }
+
+      // If still not available, try parsing from issueDate or createdAt
+      if (!yearB) {
+        const dateStr = b.data.issueDate || b.data.dateOfIssuance || b.data.createdAt;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          yearB = date.getFullYear();
+          monthB = date.getMonth() + 1;
+        } else {
+          yearB = 9999;
+          monthB = 12;
         }
       }
 
@@ -2278,11 +2330,11 @@ function updateCto_SERVER(data) {
     // Sort active batches by earned month/year (TRUE FIFO - oldest earned first)
     activeBatches.sort((a, b) => {
       // Get year and month for batch A
-      let yearA = a.data.earnedYear || 9999;
-      let monthA = a.data.earnedMonth || 12;
+      let yearA = a.data.earnedYear;
+      let monthA = a.data.earnedMonth;
 
       // If not present, try parsing from monthYear field
-      if (yearA === 9999 && a.data.monthYear) {
+      if (!yearA && a.data.monthYear) {
         const parts = a.data.monthYear.split('-');
         if (parts.length === 2) {
           yearA = parseInt(parts[0]);
@@ -2290,16 +2342,42 @@ function updateCto_SERVER(data) {
         }
       }
 
+      // If still not available, try parsing from issueDate or createdAt
+      if (!yearA) {
+        const dateStr = a.data.issueDate || a.data.dateOfIssuance || a.data.createdAt;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          yearA = date.getFullYear();
+          monthA = date.getMonth() + 1;
+        } else {
+          yearA = 9999;
+          monthA = 12;
+        }
+      }
+
       // Get year and month for batch B
-      let yearB = b.data.earnedYear || 9999;
-      let monthB = b.data.earnedMonth || 12;
+      let yearB = b.data.earnedYear;
+      let monthB = b.data.earnedMonth;
 
       // If not present, try parsing from monthYear field
-      if (yearB === 9999 && b.data.monthYear) {
+      if (!yearB && b.data.monthYear) {
         const parts = b.data.monthYear.split('-');
         if (parts.length === 2) {
           yearB = parseInt(parts[0]);
           monthB = parseInt(parts[1]);
+        }
+      }
+
+      // If still not available, try parsing from issueDate or createdAt
+      if (!yearB) {
+        const dateStr = b.data.issueDate || b.data.dateOfIssuance || b.data.createdAt;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          yearB = date.getFullYear();
+          monthB = date.getMonth() + 1;
+        } else {
+          yearB = 9999;
+          monthB = 12;
         }
       }
 
