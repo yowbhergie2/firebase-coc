@@ -1407,7 +1407,7 @@
 
       // Update help text to show valid range
       const helpText = dateInput.nextElementSibling;
-      helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      helpText.textContent = `Should be from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
       const modal = new bootstrap.Modal(document.getElementById('generateCertModal'));
       modal.show();
@@ -1685,7 +1685,7 @@
 
           // Update help text
           const helpText = document.getElementById('cert-batch-date-help');
-          helpText.textContent = `Valid from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+          helpText.textContent = `Should be from ${lastDayOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} to ${lastDayOfFollowingMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
         } else {
           // No employees found - show message
           tableSection.style.display = 'none';
@@ -2026,14 +2026,37 @@
     window.loadEmployeeLedger = async function() {
       const employeeId = document.getElementById('ledger-employee').value;
       const tbody = document.getElementById('ledgerTableBody');
+      const exportBtn = document.getElementById('export-ledger-btn');
 
       if (!employeeId) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center">Select an employee</td></tr>';
+        exportBtn.disabled = true;
+        currentLedgerData = [];
+        currentEmployeeName = '';
         return;
       }
 
       // Show loading state
       tbody.innerHTML = '<tr><td colspan="6" class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading transactions...</td></tr>';
+      exportBtn.disabled = true;
+
+      // Get employee name for export
+      try {
+        const employeeDoc = await getDoc(doc(db, 'employees', employeeId));
+        if (employeeDoc.exists()) {
+          const emp = employeeDoc.data();
+          currentEmployeeName = `${emp.firstName} ${emp.lastName}`;
+          if (emp.suffix) {
+            const needsComma = emp.suffix.toLowerCase().includes('jr') || emp.suffix.toLowerCase().includes('sr');
+            currentEmployeeName += needsComma ? `, ${emp.suffix}` : ` ${emp.suffix}`;
+          }
+        } else {
+          currentEmployeeName = employeeId;
+        }
+      } catch (error) {
+        console.error('Error fetching employee:', error);
+        currentEmployeeName = employeeId;
+      }
 
       try {
         const batchesQ = query(
@@ -2068,13 +2091,17 @@
 
             // Build rows with async data fetching
             const rows = [];
+            const exportData = [];
             for (const docSnap of snapshot.docs) {
               const ledger = docSnap.data();
               const date = new Date(ledger.transactionDate);
 
               let particularsHtml = '';
+              let particularsText = '';
               let earnedHtml = '—';
               let usedHtml = '—';
+              let earnedValue = '';
+              let usedValue = '';
               let viewDetailsHtml = '<span class="text-muted">—</span>';
 
               if (ledger.transactionType === 'Earned') {
@@ -2106,35 +2133,64 @@
                       const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
                       const year = batch.earnedYear || 'Unknown';
                       particularsHtml = `<strong>Historical Balance</strong><br><small class="text-muted">${month} ${year}</small>`;
+                      particularsText = `Historical Balance - ${month} ${year}`;
+                      viewDetailsHtml = `<button class="btn btn-sm btn-outline-info" onclick="viewHistoricalBalanceDetails('${batchDoc.id}')"><i class="bi bi-eye"></i> View</button>`;
                     } else {
                       const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
                       const year = batch.earnedYear || 'Unknown';
                       particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${month} ${year}</small>`;
+                      particularsText = `COC Earned - ${month} ${year}`;
+                      viewDetailsHtml = `<button class="btn btn-sm btn-outline-success" onclick="viewCocEarnedDetails('${batchDoc.id}')"><i class="bi bi-eye"></i> View</button>`;
                     }
                   } else {
                     particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId || 'N/A'}</small>`;
+                    particularsText = `COC Earned - ${ledger.referenceId || 'N/A'}`;
+                    // Try to find batch by referenceId for view button
+                    if (ledger.referenceId) {
+                      viewDetailsHtml = `<button class="btn btn-sm btn-outline-success" onclick="viewCocEarnedDetailsByRef('${ledger.referenceId}', '${employeeId}')"><i class="bi bi-eye"></i> View</button>`;
+                    }
                   }
                 } catch (error) {
                   console.error('Error fetching batch details:', error);
                   particularsHtml = `<strong>COC Earned</strong><br><small class="text-muted">${ledger.referenceId || 'N/A'}</small>`;
+                  particularsText = `COC Earned - ${ledger.referenceId || 'N/A'}`;
+                  // Try to add view button even on error
+                  if (ledger.referenceId) {
+                    viewDetailsHtml = `<button class="btn btn-sm btn-outline-success" onclick="viewCocEarnedDetailsByRef('${ledger.referenceId}', '${employeeId}')"><i class="bi bi-eye"></i> View</button>`;
+                  }
                 }
                 earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
+                earnedValue = ledger.hoursChange.toFixed(2);
               } else if (ledger.transactionType === 'Used') {
                 // CTO application
                 const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
                   ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}`
                   : '';
                 particularsHtml = `<strong>CTO Application</strong><br><small class="text-muted">${dateRange}</small>`;
+                particularsText = `CTO Application - ${dateRange}`;
                 usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
+                usedValue = Math.abs(ledger.hoursChange).toFixed(2);
                 viewDetailsHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
               } else {
                 particularsHtml = ledger.remarks || ledger.referenceId || 'N/A';
+                particularsText = ledger.remarks || ledger.referenceId || 'N/A';
                 if (ledger.hoursChange >= 0) {
                   earnedHtml = `<span class="text-success"><strong>${ledger.hoursChange.toFixed(2)}</strong></span>`;
+                  earnedValue = ledger.hoursChange.toFixed(2);
                 } else {
                   usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
+                  usedValue = Math.abs(ledger.hoursChange).toFixed(2);
                 }
               }
+
+              // Store data for export
+              exportData.push({
+                date: date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }),
+                particulars: particularsText,
+                earned: earnedValue,
+                used: usedValue,
+                balance: ledger.balanceAfter.toFixed(2)
+              });
 
               rows.push(`
                 <tr>
@@ -2147,6 +2203,10 @@
                 </tr>
               `);
             }
+
+            // Store data for export and enable button
+            currentLedgerData = exportData;
+            exportBtn.disabled = false;
 
             tbody.innerHTML = rows.join('');
           } catch (error) {
@@ -2161,6 +2221,57 @@
         console.error('Error in loadEmployeeLedger:', error);
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading data. Please try again.</td></tr>';
       }
+    };
+
+    // Export ledger to Excel (CSV format)
+    let currentLedgerData = [];
+    let currentEmployeeName = '';
+
+    window.exportLedgerToExcel = function() {
+      const employeeId = document.getElementById('ledger-employee').value;
+      if (!employeeId || currentLedgerData.length === 0) {
+        Modal.error('No Data', 'Please select an employee and ensure ledger data is loaded.');
+        return;
+      }
+
+      // Prepare CSV data
+      const headers = ['Date', 'Particulars', 'Earned (hrs)', 'Used (hrs)', 'Balance (hrs)'];
+      const csvRows = [];
+
+      // Add header
+      csvRows.push(headers.join(','));
+
+      // Add data rows
+      currentLedgerData.forEach(row => {
+        const csvRow = [
+          `"${row.date}"`,
+          `"${row.particulars.replace(/"/g, '""')}"`, // Escape quotes
+          row.earned || '',
+          row.used || '',
+          row.balance
+        ];
+        csvRows.push(csvRow.join(','));
+      });
+
+      // Create CSV blob
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+      // Create download link
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+
+      // Generate filename with employee name and date
+      const today = new Date().toISOString().split('T')[0];
+      const filename = `Employee_Ledger_${currentEmployeeName.replace(/[^a-z0-9]/gi, '_')}_${today}.csv`;
+      link.setAttribute('download', filename);
+
+      // Trigger download
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     };
 
     // Store the current balance listener so we can unsubscribe
@@ -3698,6 +3809,25 @@
     });
 
     // CTO Day Breakdown Functions
+    // Validate filing date is not in the future
+    window.validateFilingDate = function() {
+      const filingDateInput = document.getElementById('cto-filing-date');
+      const errorDiv = document.getElementById('cto-filing-date-error');
+      const filingDate = new Date(filingDateInput.value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (filingDate > today) {
+        filingDateInput.classList.add('is-invalid');
+        errorDiv.style.display = 'block';
+        return false;
+      } else {
+        filingDateInput.classList.remove('is-invalid');
+        errorDiv.style.display = 'none';
+        return true;
+      }
+    };
+
     // Enable inclusive date fields when filing date is selected
     window.enableInclusiveDates = function() {
       const filingDate = document.getElementById('cto-filing-date').value;
@@ -3837,6 +3967,28 @@
 
       document.getElementById('cto-total-hours-display').textContent = totalHours;
       document.getElementById('cto-hours').value = totalHours;
+
+      // Check if we're editing and hours are being reduced
+      checkRestoreRemarksVisibility();
+    };
+
+    // Check if restore remarks section should be shown
+    window.checkRestoreRemarksVisibility = function() {
+      const isEditing = document.getElementById('cto-ledger-id').value !== '';
+      const originalHours = parseFloat(document.getElementById('cto-original-hours').value) || 0;
+      const newHours = parseFloat(document.getElementById('cto-hours').value) || 0;
+      const restoreSection = document.getElementById('cto-restore-remarks-section');
+
+      if (isEditing && originalHours > 0 && newHours < originalHours) {
+        // Hours are being reduced - show restore remarks
+        restoreSection.style.display = 'block';
+      } else {
+        // Not reducing hours - hide restore remarks
+        restoreSection.style.display = 'none';
+        // Clear the field and error
+        document.getElementById('cto-restore-remarks').value = '';
+        document.getElementById('cto-restore-remarks-error').style.display = 'none';
+      }
     };
 
     window.getDayBreakdown = function() {
@@ -3943,7 +4095,15 @@
                   if (radio) radio.checked = true;
                 });
                 calculateCtototalHours();
+
+                // Store original hours for restore remarks check
+                const originalHours = Math.abs(cto.hoursChange || 0);
+                document.getElementById('cto-original-hours').value = originalHours;
               }, 100);
+            } else {
+              // If no dayBreakdown, still store original hours
+              const originalHours = Math.abs(cto.hoursChange || 0);
+              document.getElementById('cto-original-hours').value = originalHours;
             }
 
             // Show balance
@@ -3980,9 +4140,13 @@
     window.cancelCtoEdit = function() {
       document.getElementById('ctoForm').reset();
       document.getElementById('cto-ledger-id').value = '';
+      document.getElementById('cto-original-hours').value = '0';
       document.getElementById('cto-submit-text').textContent = 'Log CTO';
       document.getElementById('cto-cancel-btn').style.display = 'none';
       document.getElementById('cto-day-breakdown-section').style.display = 'none';
+      document.getElementById('cto-restore-remarks-section').style.display = 'none';
+      document.getElementById('cto-restore-remarks').value = '';
+      document.getElementById('cto-restore-remarks-error').style.display = 'none';
       document.getElementById('cto-available-balance').textContent = '0.00';
       // Disable inclusive date fields
       document.getElementById('cto-date-from').disabled = true;
@@ -4013,27 +4177,31 @@
           }
         }
 
-        // Build day breakdown HTML
+        // Build day breakdown HTML as table
         let dayBreakdownHtml = '';
         if (ledger.dayBreakdown && Object.keys(ledger.dayBreakdown).length > 0) {
-          dayBreakdownHtml = '<div class="mt-3"><strong>Day Breakdown:</strong><ul class="mt-2">';
+          dayBreakdownHtml = '<table class="table table-sm table-bordered mb-0"><tbody>';
           Object.keys(ledger.dayBreakdown).sort().forEach(date => {
             const hours = ledger.dayBreakdown[date];
             const dateObj = new Date(date);
-            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' });
-            dayBreakdownHtml += `<li>${formattedDate}: <strong>${hours} hours</strong></li>`;
+            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
+            dayBreakdownHtml += `<tr><td>${formattedDate}</td><td class="text-end"><strong>${hours} hrs</strong></td></tr>`;
           });
-          dayBreakdownHtml += '</ul></div>';
+          dayBreakdownHtml += '</tbody></table>';
+        } else {
+          dayBreakdownHtml = '<span class="text-muted">N/A</span>';
         }
 
-        // Build FIFO deduction info
+        // Build FIFO deduction info as table
         let fifoHtml = '';
         if (ledger.deductedFrom && ledger.deductedFrom.length > 0) {
-          fifoHtml = '<div class="mt-3"><strong>Deducted From (FIFO):</strong><ul class="mt-2">';
+          fifoHtml = '<table class="table table-sm table-bordered mb-0"><tbody>';
           ledger.deductedFrom.forEach(deduction => {
-            fifoHtml += `<li>${deduction.month} ${deduction.year}: <strong>${deduction.hours} hours</strong></li>`;
+            fifoHtml += `<tr><td>${deduction.month} ${deduction.year}</td><td class="text-end"><strong>${deduction.hours} hrs</strong></td></tr>`;
           });
-          fifoHtml += '</ul></div>';
+          fifoHtml += '</tbody></table>';
+        } else {
+          fifoHtml = '<span class="text-muted">N/A</span>';
         }
 
         const filingDate = ledger.filingDate ? new Date(ledger.filingDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
@@ -4043,23 +4211,47 @@
 
         Modal.custom({
           title: 'CTO Application Details',
+          icon: 'bi-file-text',
+          iconColor: 'text-primary',
           message: `
             <div class="text-start">
-              <div class="mb-3">
-                <strong>Employee:</strong> ${employeeName}<br>
-                <strong>Employee ID:</strong> ${ledger.employeeId}
-              </div>
-              <div class="mb-3">
-                <strong>Filing Date:</strong> ${filingDate}<br>
-                <strong>Inclusive Dates:</strong> ${dateFrom} - ${dateTo}<br>
-                <strong>Total Hours:</strong> ${hoursUsed.toFixed(2)} hours
-              </div>
-              ${dayBreakdownHtml}
-              ${fifoHtml}
-              ${ledger.remarks ? `<div class="mt-3"><strong>Remarks:</strong><br>${ledger.remarks}</div>` : ''}
-              <div class="mt-3">
-                <strong>Status:</strong> <span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${ledger.status}</span>
-              </div>
+              <table class="table table-bordered table-sm">
+                <tbody>
+                  <tr>
+                    <th style="width: 35%;">Employee</th>
+                    <td>${employeeName}</td>
+                  </tr>
+                  <tr>
+                    <th>Employee ID</th>
+                    <td>${ledger.employeeId}</td>
+                  </tr>
+                  <tr>
+                    <th>Filing Date</th>
+                    <td>${filingDate}</td>
+                  </tr>
+                  <tr>
+                    <th>Inclusive Dates</th>
+                    <td>${dateFrom} - ${dateTo}</td>
+                  </tr>
+                  <tr>
+                    <th>Total Hours</th>
+                    <td><strong>${hoursUsed.toFixed(2)} hours</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Day Breakdown</th>
+                    <td>${dayBreakdownHtml}</td>
+                  </tr>
+                  <tr>
+                    <th>Deducted From (FIFO)</th>
+                    <td>${fifoHtml}</td>
+                  </tr>
+                  ${ledger.remarks ? `<tr><th>Remarks</th><td>${ledger.remarks}</td></tr>` : ''}
+                  <tr>
+                    <th>Status</th>
+                    <td><span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${ledger.status}</span></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           `,
           buttons: [
@@ -4074,6 +4266,236 @@
       } catch (error) {
         console.error('Error viewing CTO details:', error);
         Modal.error('Error', 'Failed to load CTO details: ' + error.message);
+      }
+    };
+
+    // View COC Earned Details by Batch ID
+    window.viewCocEarnedDetails = async function(batchId) {
+      try {
+        const batchDoc = await getDoc(doc(db, 'creditBatches', batchId));
+
+        if (!batchDoc.exists()) {
+          Modal.error('Error', 'COC certificate not found');
+          return;
+        }
+
+        const batch = batchDoc.data();
+
+        // Fetch employee details
+        const employeeDoc = await getDoc(doc(db, 'employees', batch.employeeId));
+        let employeeName = batch.employeeId;
+        if (employeeDoc.exists()) {
+          const emp = employeeDoc.data();
+          employeeName = `${emp.firstName} ${emp.lastName}`;
+          if (emp.suffix) {
+            const needsComma = emp.suffix.toLowerCase().includes('jr') || emp.suffix.toLowerCase().includes('sr');
+            employeeName += needsComma ? `, ${emp.suffix}` : ` ${emp.suffix}`;
+          }
+        }
+
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
+        const year = batch.earnedYear || 'Unknown';
+        const createdDate = batch.createdAt ? new Date(batch.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+        const expiryDate = batch.expiryDate ? new Date(batch.expiryDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+
+        Modal.custom({
+          title: 'COC Certificate Details',
+          icon: 'bi-award',
+          iconColor: 'text-success',
+          message: `
+            <div class="text-start">
+              <table class="table table-bordered table-sm">
+                <tbody>
+                  <tr>
+                    <th style="width: 35%;">Certificate ID</th>
+                    <td>${batch.certificateId || 'N/A'}</td>
+                  </tr>
+                  <tr>
+                    <th>Employee</th>
+                    <td>${employeeName}</td>
+                  </tr>
+                  <tr>
+                    <th>Employee ID</th>
+                    <td>${batch.employeeId}</td>
+                  </tr>
+                  <tr>
+                    <th>Earned Period</th>
+                    <td><strong>${month} ${year}</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Hours Earned</th>
+                    <td><strong class="text-success">${batch.totalHours.toFixed(2)} hours</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Hours Used</th>
+                    <td>${batch.usedHours ? batch.usedHours.toFixed(2) : '0.00'} hours</td>
+                  </tr>
+                  <tr>
+                    <th>Remaining Hours</th>
+                    <td><strong class="text-primary">${batch.remainingHours.toFixed(2)} hours</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Certificate Date</th>
+                    <td>${createdDate}</td>
+                  </tr>
+                  <tr>
+                    <th>Expiry Date</th>
+                    <td>${expiryDate}</td>
+                  </tr>
+                  <tr>
+                    <th>Status</th>
+                    <td><span class="badge ${batch.status === 'Active' ? 'bg-success' : batch.status === 'Expired' ? 'bg-secondary' : 'bg-warning'}">${batch.status}</span></td>
+                  </tr>
+                  ${batch.lastUsedDate ? `<tr><th>Last Used</th><td>${new Date(batch.lastUsedDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</td></tr>` : ''}
+                </tbody>
+              </table>
+            </div>
+          `,
+          buttons: [
+            {
+              text: 'Close',
+              class: 'btn-secondary',
+              dismiss: true
+            }
+          ]
+        });
+
+      } catch (error) {
+        console.error('Error viewing COC details:', error);
+        Modal.error('Error', 'Failed to load COC details: ' + error.message);
+      }
+    };
+
+    // View COC Earned Details by Reference ID (certificate ID or batch ID)
+    window.viewCocEarnedDetailsByRef = async function(referenceId, employeeId) {
+      try {
+        let batchDoc;
+
+        // Try direct batch ID lookup first
+        if (referenceId.startsWith('BATCH_')) {
+          batchDoc = await getDoc(doc(db, 'creditBatches', referenceId));
+        }
+
+        // If not found, try searching by certificateId
+        if (!batchDoc || !batchDoc.exists()) {
+          const batchQ = query(
+            collection(db, 'creditBatches'),
+            where('certificateId', '==', referenceId),
+            where('employeeId', '==', employeeId)
+          );
+          const batchSnap = await getDocs(batchQ);
+
+          if (batchSnap.empty) {
+            Modal.error('Error', 'COC certificate not found');
+            return;
+          }
+
+          batchDoc = batchSnap.docs[0];
+        }
+
+        // Call the main view function with the found batch ID
+        viewCocEarnedDetails(batchDoc.id);
+
+      } catch (error) {
+        console.error('Error viewing COC details:', error);
+        Modal.error('Error', 'Failed to load COC details: ' + error.message);
+      }
+    };
+
+    // View Historical Balance Details
+    window.viewHistoricalBalanceDetails = async function(batchId) {
+      try {
+        const batchDoc = await getDoc(doc(db, 'creditBatches', batchId));
+
+        if (!batchDoc.exists()) {
+          Modal.error('Error', 'Historical balance record not found');
+          return;
+        }
+
+        const batch = batchDoc.data();
+
+        // Fetch employee details
+        const employeeDoc = await getDoc(doc(db, 'employees', batch.employeeId));
+        let employeeName = batch.employeeId;
+        if (employeeDoc.exists()) {
+          const emp = employeeDoc.data();
+          employeeName = `${emp.firstName} ${emp.lastName}`;
+          if (emp.suffix) {
+            const needsComma = emp.suffix.toLowerCase().includes('jr') || emp.suffix.toLowerCase().includes('sr');
+            employeeName += needsComma ? `, ${emp.suffix}` : ` ${emp.suffix}`;
+          }
+        }
+
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        const month = monthNames[batch.earnedMonth - 1] || 'Unknown';
+        const year = batch.earnedYear || 'Unknown';
+        const createdDate = batch.createdAt ? new Date(batch.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A';
+
+        Modal.custom({
+          title: 'Historical Balance Details',
+          icon: 'bi-clock-history',
+          iconColor: 'text-info',
+          message: `
+            <div class="text-start">
+              <table class="table table-bordered table-sm">
+                <tbody>
+                  <tr>
+                    <th style="width: 35%;">Source</th>
+                    <td><span class="badge bg-info">Historical Balance</span></td>
+                  </tr>
+                  <tr>
+                    <th>Employee</th>
+                    <td>${employeeName}</td>
+                  </tr>
+                  <tr>
+                    <th>Employee ID</th>
+                    <td>${batch.employeeId}</td>
+                  </tr>
+                  <tr>
+                    <th>Earned Period</th>
+                    <td><strong>${month} ${year}</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Hours Carried Over</th>
+                    <td><strong class="text-info">${batch.totalHours.toFixed(2)} hours</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Hours Used</th>
+                    <td>${batch.usedHours ? batch.usedHours.toFixed(2) : '0.00'} hours</td>
+                  </tr>
+                  <tr>
+                    <th>Remaining Hours</th>
+                    <td><strong class="text-primary">${batch.remainingHours.toFixed(2)} hours</strong></td>
+                  </tr>
+                  <tr>
+                    <th>Recorded On</th>
+                    <td>${createdDate}</td>
+                  </tr>
+                  <tr>
+                    <th>Status</th>
+                    <td><span class="badge ${batch.status === 'Active' ? 'bg-success' : batch.status === 'Expired' ? 'bg-secondary' : 'bg-warning'}">${batch.status}</span></td>
+                  </tr>
+                  ${batch.lastUsedDate ? `<tr><th>Last Used</th><td>${new Date(batch.lastUsedDate).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</td></tr>` : ''}
+                  ${batch.remarks ? `<tr><th>Remarks</th><td>${batch.remarks}</td></tr>` : ''}
+                </tbody>
+              </table>
+            </div>
+          `,
+          buttons: [
+            {
+              text: 'Close',
+              class: 'btn-secondary',
+              dismiss: true
+            }
+          ]
+        });
+
+      } catch (error) {
+        console.error('Error viewing historical balance details:', error);
+        Modal.error('Error', 'Failed to load historical balance details: ' + error.message);
       }
     };
 
@@ -4155,6 +4577,12 @@
     document.getElementById('ctoForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      // Validation: Filing date cannot be in the future
+      if (!validateFilingDate()) {
+        Modal.error('Invalid Filing Date', 'Filing date cannot be in the future.');
+        return;
+      }
+
       const ledgerId = document.getElementById('cto-ledger-id').value;
       const isEdit = ledgerId !== '';
 
@@ -4165,6 +4593,20 @@
       if (hoursUsed > availableBalance) {
         Modal.error('Insufficient Balance', `Total CTO Application (${hoursUsed.toFixed(1)} hours) exceeds your available balance (${availableBalance.toFixed(1)} hours).`);
         return;
+      }
+
+      // Validation: If restoring hours, remarks are required
+      const restoreRemarksSection = document.getElementById('cto-restore-remarks-section');
+      if (restoreRemarksSection.style.display !== 'none') {
+        const restoreRemarks = document.getElementById('cto-restore-remarks').value.trim();
+        const errorDiv = document.getElementById('cto-restore-remarks-error');
+        if (!restoreRemarks) {
+          errorDiv.style.display = 'block';
+          document.getElementById('cto-restore-remarks').focus();
+          return;
+        } else {
+          errorDiv.style.display = 'none';
+        }
       }
 
       const data = {
@@ -4178,6 +4620,10 @@
 
       if (isEdit) {
         data.ledgerId = ledgerId;
+        // Include restore remarks if hours are being reduced
+        if (restoreRemarksSection.style.display !== 'none') {
+          data.restoreRemarks = document.getElementById('cto-restore-remarks').value.trim();
+        }
       }
 
       const submitBtn = document.getElementById('cto-submit-btn');
@@ -4236,8 +4682,15 @@
               ${batchInfoHtml}
             </div>
           `;
+          ctoFormDirty = false; // Reset dirty flag
           Modal.success(title, message);
           cancelCtoEdit(); // Reset form
+
+          // Refresh CTO list if on list tab
+          const listTab = document.getElementById('cto-list-content');
+          if (listTab && listTab.classList.contains('show') && listTab.classList.contains('active')) {
+            loadCtoApplications();
+          }
         } else {
           Modal.error('Error', result.error);
         }
@@ -4271,6 +4724,61 @@
         }
       }
     })();
+
+    // Track form changes for unsaved warning
+    let ctoFormDirty = false;
+    const ctoForm = document.getElementById('ctoForm');
+    if (ctoForm) {
+      ctoForm.addEventListener('input', () => {
+        ctoFormDirty = true;
+      });
+      ctoForm.addEventListener('change', () => {
+        ctoFormDirty = true;
+      });
+    }
+
+    // Reset dirty flag when form is reset or submitted
+    const originalCancelCtoEdit = window.cancelCtoEdit;
+    window.cancelCtoEdit = function() {
+      ctoFormDirty = false;
+      originalCancelCtoEdit();
+    };
+
+    // Handle CTO tab switching with unsaved changes warning
+    const ctoListTab = document.getElementById('cto-list-tab');
+    const ctoCalendarTab = document.getElementById('cto-calendar-tab');
+
+    if (ctoListTab) {
+      ctoListTab.addEventListener('click', (e) => {
+        // Warn about unsaved changes
+        if (ctoFormDirty) {
+          if (!confirm('You have unsaved changes in the CTO form. Do you want to discard them?')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          ctoFormDirty = false;
+          cancelCtoEdit();
+        }
+        // Always refresh list when switching to list tab
+        setTimeout(() => loadCtoApplications(), 100);
+      });
+    }
+
+    if (ctoCalendarTab) {
+      ctoCalendarTab.addEventListener('click', (e) => {
+        // Warn about unsaved changes
+        if (ctoFormDirty) {
+          if (!confirm('You have unsaved changes in the CTO form. Do you want to discard them?')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          ctoFormDirty = false;
+          cancelCtoEdit();
+        }
+      });
+    }
 
     // Load CTO Applications (Tab 2)
     window.loadCtoApplications = async function() {
