@@ -2274,8 +2274,7 @@ function updateCto_SERVER(data) {
     const newBalance = availableBalance - newHoursUsed;
 
     // Update the ledger entry - preserve all original fields
-    const updatedLedgerData = {
-      ...oldLedger, // Preserve all original fields
+    const updatedLedgerData = Object.assign({}, oldLedger, {
       transactionDate: filingDate.toISOString(),
       hoursChange: -newHoursUsed,
       balanceAfter: newBalance,
@@ -2286,7 +2285,7 @@ function updateCto_SERVER(data) {
       deductedFrom: batchInfo, // Store FIFO deduction info
       remarks: data.remarks || `CTO updated on ${new Date().toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
       updatedAt: new Date().toISOString()
-    };
+    });
 
     db.updateDocument('ledger/' + data.ledgerId, updatedLedgerData);
 
