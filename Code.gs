@@ -854,8 +854,10 @@ function generateCOCCertificate_SERVER(data) {
       }
     }
 
-    // IMPORTANT: Generate PDF FIRST before creating any database records
+    // IMPORTANT: Generate PDFs FIRST before creating any database records
     // If PDF generation fails, entire certificate generation should fail
+
+    // Generate Certificate PDF
     let pdfUrl = null;
     let pdfId = null;
     const pdfResult = generateCertificatePDF({
@@ -867,13 +869,25 @@ function generateCOCCertificate_SERVER(data) {
     pdfUrl = pdfResult.url;
     pdfId = pdfResult.id;
 
-    // Only proceed with database writes if PDF generation succeeded
+    // Generate Overtime Summary PDF
+    let summaryPdfUrl = null;
+    let summaryPdfId = null;
+    const summaryResult = generateOvertimeSummaryPDF({
+      employee: employee,
+      logs: logs,
+      month: data.month,
+      year: data.year
+    });
+    summaryPdfUrl = summaryResult.url;
+    summaryPdfId = summaryResult.id;
+
+    // Only proceed with database writes if both PDFs generated successfully
     // Generate IDs
     const certificateId = 'CERT_' + Utilities.getUuid();
     const batchId = 'BATCH_' + Utilities.getUuid();
     const ledgerId = 'LEDGER_' + Utilities.getUuid();
 
-    // Create certificate document with PDF info
+    // Create certificate document with both PDFs info
     const certData = {
       certificateId: certificateId,
       employeeId: data.employeeId,
@@ -885,6 +899,8 @@ function generateCOCCertificate_SERVER(data) {
       logIds: logs.map(log => log.logId),
       pdfUrl: pdfUrl,
       pdfId: pdfId,
+      summaryPdfUrl: summaryPdfUrl,
+      summaryPdfId: summaryPdfId,
       createdAt: new Date().toISOString(),
       createdBy: Session.getActiveUser().getEmail()
     };
@@ -959,6 +975,7 @@ function generateCOCCertificate_SERVER(data) {
       certificateId: certificateId,
       totalEarnedHours: totalEarnedHours,
       pdfUrl: pdfUrl,
+      summaryPdfUrl: summaryPdfUrl,
       employeeName: employeeFullName,
       monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
       // Date format: MM/dd/yyyy - produces "09/01/2025"
@@ -1002,7 +1019,10 @@ function generateBatchCertificates_SERVER(data) {
         employeeId: employeeId,
         success: result.success,
         error: result.error || null,
-        certificateId: result.certificateId || null
+        certificateId: result.certificateId || null,
+        employeeName: result.employeeName || null,
+        pdfUrl: result.pdfUrl || null,
+        summaryPdfUrl: result.summaryPdfUrl || null
       });
 
       if (result.success) {
@@ -1088,6 +1108,8 @@ function getCertificates_SERVER(filters) {
         validUntil: cert.validUntil,
         pdfUrl: cert.pdfUrl || null,
         pdfId: cert.pdfId || null,
+        summaryPdfUrl: cert.summaryPdfUrl || null,
+        summaryPdfId: cert.summaryPdfId || null,
         status: status,
         createdAt: cert.createdAt,
         createdBy: cert.createdBy
@@ -1369,6 +1391,248 @@ function generateCertificatePDF(data) {
   }
 }
 
+/**
+ * Generate Overtime Summary PDF
+ * @param {Object} data - Summary data
+ * @returns {Object} {url, id} of the generated PDF
+ */
+function generateOvertimeSummaryPDF(data) {
+  try {
+    // Validate CERTIFICATE_TEMPLATE_ID is set (we'll use same spreadsheet)
+    if (!CERTIFICATE_TEMPLATE_ID) {
+      throw new Error('CERTIFICATE_TEMPLATE_ID constant is not defined');
+    }
+
+    // Open the template spreadsheet
+    let ss;
+    try {
+      ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificate template spreadsheet: ' + e.toString());
+    }
+
+    // Create temporary sheet for summary
+    const tempSheetName = 'TEMP_SUMMARY_' + data.employee.employeeId + '_' + Date.now();
+    const tempSheet = ss.insertSheet(tempSheetName);
+
+    // Format employee name
+    const employeeName = `${data.employee.firstName} ${data.employee.middleName || ''} ${data.employee.lastName}`.trim();
+    const position = data.employee.position || '';
+    const office = data.employee.office || '';
+
+    // Format month/year
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthYear = `${monthNames[data.month]} ${data.year}`;
+
+    // Set column widths
+    tempSheet.setColumnWidth(1, 100);  // A: Date
+    tempSheet.setColumnWidth(2, 130);  // B: Day Type
+    tempSheet.setColumnWidth(3, 80);   // C: AM In
+    tempSheet.setColumnWidth(4, 80);   // D: AM Out
+    tempSheet.setColumnWidth(5, 80);   // E: PM In
+    tempSheet.setColumnWidth(6, 80);   // F: PM Out
+    tempSheet.setColumnWidth(7, 90);   // G: Hours Worked
+    tempSheet.setColumnWidth(8, 90);   // H: COC Earned
+
+    let currentRow = 1;
+
+    // Title
+    tempSheet.getRange(currentRow, 1, 1, 8).merge()
+      .setValue('OVERTIME SUMMARY REPORT')
+      .setFontSize(16)
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBackground('#1a73e8')
+      .setFontColor('#ffffff');
+    currentRow += 2;
+
+    // Employee Information Section
+    tempSheet.getRange(currentRow, 1).setValue('Employee:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(employeeName);
+    currentRow++;
+
+    tempSheet.getRange(currentRow, 1).setValue('Position:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(position);
+    currentRow++;
+
+    tempSheet.getRange(currentRow, 1).setValue('Office:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(office);
+    currentRow++;
+
+    tempSheet.getRange(currentRow, 1).setValue('Period:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(monthYear);
+    currentRow += 2;
+
+    // Table Headers
+    const headers = ['Date', 'Day Type', 'AM In', 'AM Out', 'PM In', 'PM Out', 'Hours Worked', 'COC Earned'];
+    const headerRange = tempSheet.getRange(currentRow, 1, 1, 8);
+    headerRange.setValues([headers])
+      .setFontWeight('bold')
+      .setBackground('#f0f0f0')
+      .setHorizontalAlignment('center')
+      .setBorder(true, true, true, true, true, true);
+    currentRow++;
+
+    // Sort logs by date
+    const sortedLogs = data.logs.slice().sort((a, b) => {
+      return new Date(a.overtimeDate) - new Date(b.overtimeDate);
+    });
+
+    // Data Rows
+    sortedLogs.forEach(log => {
+      const overtimeDate = new Date(log.overtimeDate);
+      const formattedDate = Utilities.formatDate(overtimeDate, 'Asia/Manila', 'MM/dd/yyyy');
+
+      // Determine day type display
+      let dayTypeDisplay = '';
+      if (log.isHoliday) {
+        dayTypeDisplay = log.holidayName || 'Holiday';
+      } else if (log.dayType === 'weekend') {
+        dayTypeDisplay = 'Weekend';
+      } else {
+        dayTypeDisplay = 'Weekday';
+      }
+
+      const rowData = [
+        formattedDate,
+        dayTypeDisplay,
+        log.amIn || '-',
+        log.amOut || '-',
+        log.pmIn || '-',
+        log.pmOut || '-',
+        log.hoursWorked ? log.hoursWorked.toFixed(1) : '0.0',
+        log.earnedHours ? log.earnedHours.toFixed(1) : '0.0'
+      ];
+
+      tempSheet.getRange(currentRow, 1, 1, 8)
+        .setValues([rowData])
+        .setHorizontalAlignment('center')
+        .setBorder(true, true, true, true, false, false);
+
+      // Color code day type
+      if (log.isHoliday) {
+        tempSheet.getRange(currentRow, 2).setBackground('#fce4ec'); // Light red for holidays
+      } else if (log.dayType === 'weekend') {
+        tempSheet.getRange(currentRow, 2).setBackground('#fff9c4'); // Light yellow for weekends
+      }
+
+      currentRow++;
+    });
+
+    // Total Row
+    tempSheet.getRange(currentRow, 1, 1, 6).merge()
+      .setValue('TOTAL:')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('right')
+      .setBackground('#e3f2fd')
+      .setBorder(true, true, true, true, false, false);
+
+    const totalHoursWorked = sortedLogs.reduce((sum, log) => sum + (log.hoursWorked || 0), 0);
+    const totalEarned = sortedLogs.reduce((sum, log) => sum + (log.earnedHours || 0), 0);
+
+    tempSheet.getRange(currentRow, 7)
+      .setValue(totalHoursWorked.toFixed(1))
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBackground('#e3f2fd')
+      .setBorder(true, true, true, true, false, false);
+
+    tempSheet.getRange(currentRow, 8)
+      .setValue(totalEarned.toFixed(1))
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBackground('#e3f2fd')
+      .setBorder(true, true, true, true, false, false);
+
+    currentRow += 2;
+
+    // Footer note
+    tempSheet.getRange(currentRow, 1, 1, 8).merge()
+      .setValue('This summary is automatically generated with the Certificate of Compensatory Time.')
+      .setFontSize(9)
+      .setFontStyle('italic')
+      .setHorizontalAlignment('center');
+
+    // Hide gridlines
+    tempSheet.setHiddenGridlines(true);
+
+    // Flush changes
+    SpreadsheetApp.flush();
+
+    // Convert to PDF
+    let pdfBlob;
+    try {
+      pdfBlob = convertSheetToPDF(ss, tempSheet);
+    } catch (e) {
+      ss.deleteSheet(tempSheet);
+      throw new Error('Failed to convert summary sheet to PDF: ' + e.toString());
+    }
+
+    // Set PDF filename
+    const pdfFileName = `Overtime_Summary_${data.employee.lastName}, ${data.employee.firstName}_${monthYear}.pdf`;
+    pdfBlob.setName(pdfFileName);
+
+    // Save to Drive (same location as certificate)
+    const CERTIFICATES_FOLDER_ID = '1QltJeBLauIIjITAE8UUTNKwWb3u4r4Nr';
+
+    let mainFolder;
+    try {
+      mainFolder = DriveApp.getFolderById(CERTIFICATES_FOLDER_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificates folder: ' + e.toString());
+    }
+
+    // Get year and month folders
+    const year = data.year;
+    const monthFolderNames = ['01-January', '02-February', '03-March', '04-April', '05-May', '06-June',
+                              '07-July', '08-August', '09-September', '10-October', '11-November', '12-December'];
+    const monthFolderName = monthFolderNames[data.month];
+
+    // Create or get year folder
+    let yearFolder;
+    const yearFolders = mainFolder.getFoldersByName(year.toString());
+    if (yearFolders.hasNext()) {
+      yearFolder = yearFolders.next();
+    } else {
+      yearFolder = mainFolder.createFolder(year.toString());
+    }
+
+    // Create or get month folder
+    let monthFolder;
+    const monthFolders = yearFolder.getFoldersByName(monthFolderName);
+    if (monthFolders.hasNext()) {
+      monthFolder = monthFolders.next();
+    } else {
+      monthFolder = yearFolder.createFolder(monthFolderName);
+    }
+
+    // Save PDF
+    let pdfFile;
+    try {
+      pdfFile = monthFolder.createFile(pdfBlob);
+    } catch (e) {
+      ss.deleteSheet(tempSheet);
+      throw new Error('Failed to save summary PDF to Drive: ' + e.toString());
+    }
+
+    const pdfUrl = pdfFile.getUrl();
+    const pdfId = pdfFile.getId();
+
+    // Delete temporary sheet
+    ss.deleteSheet(tempSheet);
+
+    return {
+      url: pdfUrl,
+      id: pdfId
+    };
+
+  } catch (error) {
+    Logger.log('Summary PDF generation error: ' + error.toString());
+    throw error;
+  }
+}
+
 
 function logCto_SERVER(data) {
   try {
@@ -1423,44 +1687,513 @@ function logCto_SERVER(data) {
     }
     
     const ctoId = 'CTO_' + Utilities.getUuid();
-    const ctoDate = new Date(data.ctoDate);
-    
+    const filingDate = new Date(data.filingDate);
+    const dateFrom = new Date(data.dateFrom);
+    const dateTo = new Date(data.dateTo);
+
+    // Collect batch information for display
+    const batchInfo = [];
     usedBatches.forEach(usage => {
       const newStatus = usage.newRemaining === 0 ? 'Depleted' : 'Active';
-      
+
+      // Get batch details
+      const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
+      if (batchDoc && batchDoc.obj) {
+        const batchData = batchDoc.obj;
+        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+        batchInfo.push({
+          hours: usage.hoursUsed,
+          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
+          year: certDate ? certDate.getFullYear() : 'Unknown'
+        });
+      }
+
       db.updateDocument('creditBatches/' + usage.batchId, {
         remainingHours: usage.newRemaining,
         status: newStatus,
-        lastUsedDate: ctoDate.toISOString(),
+        lastUsedDate: filingDate.toISOString(),
         lastUsedBy: Session.getActiveUser().getEmail()
       });
     });
-    
+
     const newBalance = availableBalance - hoursUsed;
-    
+
     const ledgerId = 'LEDGER_' + Utilities.getUuid();
     const ledgerData = {
       ledgerId: ledgerId,
       employeeId: data.employeeId,
-      transactionDate: ctoDate.toISOString(),
+      transactionDate: filingDate.toISOString(),
       transactionType: 'Used',
       referenceId: ctoId,
       hoursChange: -hoursUsed,
       balanceAfter: newBalance,
-      remarks: data.remarks || `CTO on ${ctoDate.toISOString().split('T')[0]}`,
+      filingDate: filingDate.toISOString(),
+      inclusiveDateFrom: dateFrom.toISOString(),
+      inclusiveDateTo: dateTo.toISOString(),
+      dayBreakdown: data.dayBreakdown || {},
+      status: 'Active',
+      remarks: data.remarks || `CTO filed on ${filingDate.toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
       createdAt: new Date().toISOString()
     };
-    
+
     db.createDocument('ledger/' + ledgerId, ledgerData);
-    
+
     return {
       success: true,
       ctoId: ctoId,
       hoursUsed: hoursUsed,
-      newBalance: newBalance
+      totalEarned: availableBalance,
+      newBalance: newBalance,
+      creditedFrom: batchInfo
     };
     
   } catch (error) {
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Get all CTO applications from ledger
+function getCtoApplications_SERVER() {
+  try {
+    const db = getFirestore();
+
+    // Get all ledger entries with transaction type 'Used'
+    const allLedger = db.getDocuments('ledger');
+    const ctoApplications = [];
+
+    // Get all employees for name lookup
+    const allEmployees = db.getDocuments('employees');
+    const employeeMap = {};
+    for (let i = 0; i < allEmployees.length; i++) {
+      const emp = allEmployees[i].obj;
+      if (emp) {
+        employeeMap[emp.employeeId] = `${emp.firstName} ${emp.lastName}`;
+      }
+    }
+
+    for (let i = 0; i < allLedger.length; i++) {
+      const ledger = allLedger[i].obj;
+      if (ledger && ledger.transactionType === 'Used') {
+        ctoApplications.push({
+          ledgerId: ledger.ledgerId,
+          employeeId: ledger.employeeId,
+          employeeName: employeeMap[ledger.employeeId] || 'Unknown',
+          filingDate: ledger.filingDate || ledger.transactionDate,
+          inclusiveDateFrom: ledger.inclusiveDateFrom || ledger.transactionDate,
+          inclusiveDateTo: ledger.inclusiveDateTo || ledger.transactionDate,
+          hoursChange: ledger.hoursChange,
+          balanceAfter: ledger.balanceAfter,
+          status: ledger.status || 'Active',
+          dayBreakdown: ledger.dayBreakdown || {},
+          remarks: ledger.remarks,
+          createdAt: ledger.createdAt
+        });
+      }
+    }
+
+    // Sort by filing date (newest first)
+    ctoApplications.sort((a, b) => new Date(b.filingDate) - new Date(a.filingDate));
+
+    return {
+      success: true,
+      applications: ctoApplications
+    };
+
+  } catch (error) {
+    Logger.log('Error getting CTO applications: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Get CTO calendar for a specific month/year
+function getCtoCalendar_SERVER(data) {
+  try {
+    const db = getFirestore();
+
+    const month = data.month; // 0-11
+    const year = data.year;
+
+    // Get all ledger entries with transaction type 'Used'
+    const allLedger = db.getDocuments('ledger');
+
+    // Get all employees for name lookup
+    const allEmployees = db.getDocuments('employees');
+    const employeeMap = {};
+    for (let i = 0; i < allEmployees.length; i++) {
+      const emp = allEmployees[i].obj;
+      if (emp) {
+        employeeMap[emp.employeeId] = `${emp.firstName} ${emp.lastName}`;
+      }
+    }
+
+    const ctosByDate = {};
+    let totalApplications = 0;
+
+    for (let i = 0; i < allLedger.length; i++) {
+      const ledger = allLedger[i].obj;
+      if (ledger && ledger.transactionType === 'Used' && ledger.inclusiveDateFrom && ledger.inclusiveDateTo) {
+        const dateFrom = new Date(ledger.inclusiveDateFrom);
+        const dateTo = new Date(ledger.inclusiveDateTo);
+
+        // Check if any date in the inclusive range falls within the selected month/year
+        const currentDate = new Date(dateFrom);
+        while (currentDate <= dateTo) {
+          if (currentDate.getMonth() === month && currentDate.getFullYear() === year) {
+            const dateStr = Utilities.formatDate(currentDate, 'GMT', 'yyyy-MM-dd');
+
+            if (!ctosByDate[dateStr]) {
+              ctosByDate[dateStr] = [];
+            }
+
+            ctosByDate[dateStr].push({
+              employeeName: employeeMap[ledger.employeeId] || 'Unknown',
+              hoursUsed: Math.abs(ledger.hoursChange)
+            });
+
+            // Only count once per application
+            if (currentDate.getTime() === dateFrom.getTime()) {
+              totalApplications++;
+            }
+          }
+
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      ctosByDate: ctosByDate,
+      totalApplications: totalApplications
+    };
+
+  } catch (error) {
+    Logger.log('Error getting CTO calendar: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Get a single CTO application for editing
+function getCtoApplication_SERVER(ledgerId) {
+  try {
+    const db = getFirestore();
+
+    // Get the ledger entry
+    const ledgerDoc = db.getDocument('ledger/' + ledgerId);
+    if (!ledgerDoc) {
+      return {
+        success: false,
+        error: 'CTO application not found'
+      };
+    }
+
+    const ledger = ledgerDoc.obj;
+
+    // Get employee details
+    const employeeDoc = db.getDocument('employees/' + ledger.employeeId);
+    const employee = employeeDoc ? employeeDoc.obj : null;
+
+    return {
+      success: true,
+      application: {
+        ledgerId: ledger.ledgerId,
+        employeeId: ledger.employeeId,
+        employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown',
+        filingDate: ledger.filingDate || ledger.transactionDate,
+        inclusiveDateFrom: ledger.inclusiveDateFrom || ledger.transactionDate,
+        inclusiveDateTo: ledger.inclusiveDateTo || ledger.transactionDate,
+        hoursUsed: Math.abs(ledger.hoursChange),
+        dayBreakdown: ledger.dayBreakdown || {},
+        status: ledger.status || 'Active',
+        remarks: ledger.remarks || ''
+      }
+    };
+
+  } catch (error) {
+    Logger.log('Error getting CTO application: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Update an existing CTO application
+function updateCto_SERVER(data) {
+  try {
+    const db = getFirestore();
+
+    // Get the existing ledger entry
+    const ledgerDoc = db.getDocument('ledger/' + data.ledgerId);
+    if (!ledgerDoc) {
+      return {
+        success: false,
+        error: 'CTO application not found'
+      };
+    }
+
+    const oldLedger = ledgerDoc.obj;
+    const oldHoursUsed = Math.abs(oldLedger.hoursChange);
+    const newHoursUsed = parseFloat(data.hoursUsed);
+
+    // Step 1: Restore hours from the old CTO (reverse the original deduction)
+    // We need to restore hours back to credit batches using FIFO
+    const batchDocs = db.getDocuments('creditBatches');
+    const batches = [];
+
+    for (let i = 0; i < batchDocs.length; i++) {
+      const doc = batchDocs[i];
+      const batch = doc.obj;
+      if (!batch || batch.employeeId !== data.employeeId) {
+        continue;
+      }
+
+      const batchId = doc.name.split('/').pop();
+      batches.push({ id: batchId, data: batch });
+    }
+
+    // Sort batches by expiry date (FIFO - oldest first)
+    batches.sort((a, b) => {
+      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
+      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
+      return dateA - dateB;
+    });
+
+    // Restore hours to batches
+    let remainingToRestore = oldHoursUsed;
+    for (let i = 0; i < batches.length && remainingToRestore > 0; i++) {
+      const batch = batches[i];
+      const toRestore = Math.min(remainingToRestore, oldHoursUsed);
+
+      const newRemaining = batch.data.remainingHours + toRestore;
+      const newStatus = newRemaining > 0 ? 'Active' : batch.data.status;
+
+      db.updateDocument('creditBatches/' + batch.id, {
+        remainingHours: newRemaining,
+        status: newStatus
+      });
+
+      remainingToRestore -= toRestore;
+
+      // If we've restored all hours, stop
+      if (remainingToRestore <= 0) break;
+    }
+
+    // Step 2: Deduct new hours (same logic as logCto_SERVER)
+    let availableBalance = 0;
+    const activeBatches = [];
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      // Re-fetch to get updated remaining hours
+      const updatedBatchDoc = db.getDocument('creditBatches/' + batch.id);
+      const updatedBatch = updatedBatchDoc.obj;
+
+      if (updatedBatch.status === 'Active') {
+        activeBatches.push({ id: batch.id, data: updatedBatch });
+        availableBalance += Number(updatedBatch.remainingHours || 0);
+      }
+    }
+
+    // Sort active batches by expiry date again
+    activeBatches.sort((a, b) => {
+      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
+      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
+      return dateA - dateB;
+    });
+
+    if (newHoursUsed > availableBalance) {
+      return {
+        success: false,
+        error: `Insufficient balance. Available: ${availableBalance.toFixed(2)} hours, Requested: ${newHoursUsed.toFixed(2)} hours`
+      };
+    }
+
+    // Deduct new hours
+    let remainingToUse = newHoursUsed;
+    const usedBatches = [];
+
+    for (let i = 0; i < activeBatches.length && remainingToUse > 0; i++) {
+      const batch = activeBatches[i];
+      const available = batch.data.remainingHours;
+      const toUse = Math.min(available, remainingToUse);
+
+      usedBatches.push({
+        batchId: batch.id,
+        hoursUsed: toUse,
+        newRemaining: available - toUse
+      });
+
+      remainingToUse -= toUse;
+    }
+
+    const filingDate = new Date(data.filingDate);
+    const dateFrom = new Date(data.dateFrom);
+    const dateTo = new Date(data.dateTo);
+
+    // Collect batch information for display
+    const batchInfo = [];
+    usedBatches.forEach(usage => {
+      const newStatus = usage.newRemaining === 0 ? 'Depleted' : 'Active';
+
+      // Get batch details
+      const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
+      if (batchDoc && batchDoc.obj) {
+        const batchData = batchDoc.obj;
+        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+        batchInfo.push({
+          hours: usage.hoursUsed,
+          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
+          year: certDate ? certDate.getFullYear() : 'Unknown'
+        });
+      }
+
+      db.updateDocument('creditBatches/' + usage.batchId, {
+        remainingHours: usage.newRemaining,
+        status: newStatus,
+        lastUsedDate: filingDate.toISOString(),
+        lastUsedBy: Session.getActiveUser().getEmail()
+      });
+    });
+
+    const newBalance = availableBalance - newHoursUsed;
+
+    // Update the ledger entry
+    const updatedLedgerData = {
+      transactionDate: filingDate.toISOString(),
+      hoursChange: -newHoursUsed,
+      balanceAfter: newBalance,
+      filingDate: filingDate.toISOString(),
+      inclusiveDateFrom: dateFrom.toISOString(),
+      inclusiveDateTo: dateTo.toISOString(),
+      dayBreakdown: data.dayBreakdown || {},
+      remarks: data.remarks || `CTO updated on ${new Date().toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
+      updatedAt: new Date().toISOString()
+    };
+
+    db.updateDocument('ledger/' + data.ledgerId, updatedLedgerData);
+
+    return {
+      success: true,
+      hoursUsed: newHoursUsed,
+      totalEarned: availableBalance,
+      newBalance: newBalance,
+      creditedFrom: batchInfo
+    };
+
+  } catch (error) {
+    Logger.log('Error updating CTO: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// Cancel a CTO application and restore hours
+function cancelCto_SERVER(ledgerId) {
+  try {
+    const db = getFirestore();
+
+    // Get the ledger entry
+    const ledgerDoc = db.getDocument('ledger/' + ledgerId);
+    if (!ledgerDoc) {
+      return {
+        success: false,
+        error: 'CTO application not found'
+      };
+    }
+
+    const ledger = ledgerDoc.obj;
+
+    // Check if already cancelled
+    if (ledger.status === 'Cancelled') {
+      return {
+        success: false,
+        error: 'CTO application is already cancelled'
+      };
+    }
+
+    const hoursToRestore = Math.abs(ledger.hoursChange);
+
+    // Get all credit batches for the employee
+    const batchDocs = db.getDocuments('creditBatches');
+    const batches = [];
+
+    for (let i = 0; i < batchDocs.length; i++) {
+      const doc = batchDocs[i];
+      const batch = doc.obj;
+      if (!batch || batch.employeeId !== ledger.employeeId) {
+        continue;
+      }
+
+      const batchId = doc.name.split('/').pop();
+      batches.push({ id: batchId, data: batch });
+    }
+
+    // Sort batches by expiry date (FIFO - oldest first)
+    batches.sort((a, b) => {
+      const dateA = a.data.expiryDate ? new Date(a.data.expiryDate) : new Date('9999-12-31');
+      const dateB = b.data.expiryDate ? new Date(b.data.expiryDate) : new Date('9999-12-31');
+      return dateA - dateB;
+    });
+
+    // Restore hours to batches (FIFO)
+    let remainingToRestore = hoursToRestore;
+    for (let i = 0; i < batches.length && remainingToRestore > 0; i++) {
+      const batch = batches[i];
+      const toRestore = Math.min(remainingToRestore, hoursToRestore);
+
+      const newRemaining = batch.data.remainingHours + toRestore;
+      const newStatus = newRemaining > 0 ? 'Active' : batch.data.status;
+
+      db.updateDocument('creditBatches/' + batch.id, {
+        remainingHours: newRemaining,
+        status: newStatus
+      });
+
+      remainingToRestore -= toRestore;
+
+      // If we've restored all hours, stop
+      if (remainingToRestore <= 0) break;
+    }
+
+    // Calculate new balance
+    let newBalance = 0;
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      const updatedBatchDoc = db.getDocument('creditBatches/' + batch.id);
+      const updatedBatch = updatedBatchDoc.obj;
+
+      if (updatedBatch.status === 'Active') {
+        newBalance += Number(updatedBatch.remainingHours || 0);
+      }
+    }
+
+    // Update ledger entry to mark as cancelled
+    db.updateDocument('ledger/' + ledgerId, {
+      status: 'Cancelled',
+      cancelledAt: new Date().toISOString(),
+      cancelledBy: Session.getActiveUser().getEmail()
+    });
+
+    return {
+      success: true,
+      hoursRestored: hoursToRestore,
+      newBalance: newBalance
+    };
+
+  } catch (error) {
+    Logger.log('Error cancelling CTO: ' + error.toString());
     return {
       success: false,
       error: error.toString()
