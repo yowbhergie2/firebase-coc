@@ -1569,7 +1569,7 @@ function generateOvertimeSummaryPDF(data) {
 
     // Footer note
     tempSheet.getRange(currentRow, 1, 1, 8).merge()
-      .setValue('This summary is automatically generated with the Certificate of Compensatory Time.')
+      .setValue('This summary is automatically generated with the Compensatory Overtime Credit (COC) and Compensatory Time-Off (CTO) Management System.')
       .setFontSize(9)
       .setFontStyle('italic')
       .setHorizontalAlignment('center');
