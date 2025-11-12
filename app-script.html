@@ -55,21 +55,38 @@
           button.type = 'button';
           button.className = `btn ${btn.class} px-4`;
           button.textContent = btn.text;
-          
+
+          if (btn.id) {
+            button.id = btn.id;
+          }
+
           if (btn.dismiss) {
             button.setAttribute('data-bs-dismiss', 'modal');
           }
-          
+
           if (btn.callback) {
-            button.onclick = () => {
-              if (this._instance) {
-                this._instance.hide();
+            button.onclick = async () => {
+              const result = await btn.callback();
+              // If callback returns false, keep modal open (for validation errors, etc.)
+              // If callback returns true or undefined, close modal
+              if (result !== false) {
+                if (this._instance) {
+                  this._instance.hide();
+                }
               }
-              btn.callback();
             };
-          } else if (btn.dismiss) {
+          } else if (btn.action) {
+            // Handle action property (alternative to callback)
+            button.onclick = async () => {
+              const result = await btn.action();
+              if (result !== false) {
+                if (this._instance) {
+                  this._instance.hide();
+                }
+              }
+            };
           }
-          
+
           footerEl.appendChild(button);
         });
 
@@ -4805,6 +4822,27 @@
             batchInfoHtml += '</ul></div>';
           }
 
+          // Build restoration info section (for CTO updates)
+          let restorationInfoHtml = '';
+          if (isEdit && result.originalHours && result.hoursRestored > 0) {
+            restorationInfoHtml = `
+              <div class="mt-3 text-start border-top pt-3">
+                <p class="mb-2"><strong>CTO Update Details:</strong></p>
+                <div class="ms-3">
+                  <p class="mb-1">Original CTO: <strong>${result.originalHours.toFixed(1)} hours</strong></p>
+                  <p class="mb-1">New CTO: <strong class="text-danger">${result.hoursUsed.toFixed(1)} hours</strong></p>
+                  <p class="mb-2 text-success">Restored: <strong>${result.hoursRestored.toFixed(1)} hours</strong></p>
+            `;
+            if (result.restoredTo && result.restoredTo.length > 0) {
+              restorationInfoHtml += '<p class="mb-1 small"><strong>Restored to:</strong></p><ul class="list-unstyled ms-3 mb-0 small">';
+              result.restoredTo.forEach(batch => {
+                restorationInfoHtml += `<li><i class="bi bi-arrow-return-right text-success"></i> ${batch.hours.toFixed(1)} hrs - ${batch.month} ${batch.year}</li>`;
+              });
+              restorationInfoHtml += '</ul>';
+            }
+            restorationInfoHtml += '</div></div>';
+          }
+
           const title = isEdit ? 'CTO Updated!' : 'CTO Logged!';
           const message = `
             <div class="text-center">
@@ -4827,6 +4865,7 @@
                 </tbody>
               </table>
               ${batchInfoHtml}
+              ${restorationInfoHtml}
             </div>
           `;
           ctoFormDirty = false; // Reset dirty flag
@@ -5861,6 +5900,13 @@
           // Refresh overtime context to validate current selection
           if (typeof updateOvertimeContext === 'function') {
             updateOvertimeContext();
+          }
+        } else if (page === 'log-cto') {
+          // Activate the "Log CTO Application" tab (default tab)
+          const logCtoTab = document.getElementById('cto-log-tab');
+          if (logCtoTab) {
+            const tab = new bootstrap.Tab(logCtoTab);
+            tab.show();
           }
         } else if (page === 'view-certificates') {
           // Load certificates with current filters (defaults to All Years)

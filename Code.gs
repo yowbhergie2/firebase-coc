@@ -2492,12 +2492,28 @@ function updateCto_SERVER(data) {
 
     db.updateDocument('ledger/' + data.ledgerId, updatedLedgerData);
 
+    // Prepare restored batches info if hours were restored
+    let restoredBatches = [];
+    if (hoursActuallyRestored > 0 && oldLedger.deductedFrom) {
+      for (let i = oldLedger.deductedFrom.length - 1; i >= 0; i--) {
+        const deductionInfo = oldLedger.deductedFrom[i];
+        restoredBatches.push({
+          hours: deductionInfo.hours,
+          month: deductionInfo.month,
+          year: deductionInfo.year
+        });
+      }
+    }
+
     return {
       success: true,
       hoursUsed: newHoursUsed,
       totalEarned: availableBalance,
       newBalance: newBalance,
-      creditedFrom: batchInfo
+      creditedFrom: batchInfo,
+      originalHours: oldHoursUsed,
+      hoursRestored: hoursActuallyRestored,
+      restoredTo: restoredBatches
     };
 
   } catch (error) {
@@ -2622,13 +2638,16 @@ function cancelCto_SERVER(ledgerId, reason) {
       }
     }
 
-    // Update ledger entry to mark as cancelled
-    db.updateDocument('ledger/' + ledgerId, {
+    // Update ledger entry to mark as cancelled - preserve all original fields
+    const updatedLedger = Object.assign({}, ledger, {
       status: 'Cancelled',
       cancelledAt: new Date().toISOString(),
       cancelledBy: Session.getActiveUser().getEmail(),
-      cancellationReason: reason.trim()
+      cancellationReason: reason.trim(),
+      balanceAfter: newBalance // Update balance after restoration
     });
+
+    db.updateDocument('ledger/' + ledgerId, updatedLedger);
 
     // Prepare response message
     let message = `Successfully cancelled CTO and restored ${hoursActuallyRestored.toFixed(1)} hours.`;
