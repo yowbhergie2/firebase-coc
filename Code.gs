@@ -854,8 +854,10 @@ function generateCOCCertificate_SERVER(data) {
       }
     }
 
-    // IMPORTANT: Generate PDF FIRST before creating any database records
+    // IMPORTANT: Generate PDFs FIRST before creating any database records
     // If PDF generation fails, entire certificate generation should fail
+
+    // Generate Certificate PDF
     let pdfUrl = null;
     let pdfId = null;
     const pdfResult = generateCertificatePDF({
@@ -867,13 +869,25 @@ function generateCOCCertificate_SERVER(data) {
     pdfUrl = pdfResult.url;
     pdfId = pdfResult.id;
 
-    // Only proceed with database writes if PDF generation succeeded
+    // Generate Overtime Summary PDF
+    let summaryPdfUrl = null;
+    let summaryPdfId = null;
+    const summaryResult = generateOvertimeSummaryPDF({
+      employee: employee,
+      logs: logs,
+      month: data.month,
+      year: data.year
+    });
+    summaryPdfUrl = summaryResult.url;
+    summaryPdfId = summaryResult.id;
+
+    // Only proceed with database writes if both PDFs generated successfully
     // Generate IDs
     const certificateId = 'CERT_' + Utilities.getUuid();
     const batchId = 'BATCH_' + Utilities.getUuid();
     const ledgerId = 'LEDGER_' + Utilities.getUuid();
 
-    // Create certificate document with PDF info
+    // Create certificate document with both PDFs info
     const certData = {
       certificateId: certificateId,
       employeeId: data.employeeId,
@@ -885,6 +899,8 @@ function generateCOCCertificate_SERVER(data) {
       logIds: logs.map(log => log.logId),
       pdfUrl: pdfUrl,
       pdfId: pdfId,
+      summaryPdfUrl: summaryPdfUrl,
+      summaryPdfId: summaryPdfId,
       createdAt: new Date().toISOString(),
       createdBy: Session.getActiveUser().getEmail()
     };
@@ -959,6 +975,7 @@ function generateCOCCertificate_SERVER(data) {
       certificateId: certificateId,
       totalEarnedHours: totalEarnedHours,
       pdfUrl: pdfUrl,
+      summaryPdfUrl: summaryPdfUrl,
       employeeName: employeeFullName,
       monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
       // Date format: MM/dd/yyyy - produces "09/01/2025"
@@ -1365,6 +1382,248 @@ function generateCertificatePDF(data) {
 
   } catch (error) {
     Logger.log('PDF generation error: ' + error.toString());
+    throw error;
+  }
+}
+
+/**
+ * Generate Overtime Summary PDF
+ * @param {Object} data - Summary data
+ * @returns {Object} {url, id} of the generated PDF
+ */
+function generateOvertimeSummaryPDF(data) {
+  try {
+    // Validate CERTIFICATE_TEMPLATE_ID is set (we'll use same spreadsheet)
+    if (!CERTIFICATE_TEMPLATE_ID) {
+      throw new Error('CERTIFICATE_TEMPLATE_ID constant is not defined');
+    }
+
+    // Open the template spreadsheet
+    let ss;
+    try {
+      ss = SpreadsheetApp.openById(CERTIFICATE_TEMPLATE_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificate template spreadsheet: ' + e.toString());
+    }
+
+    // Create temporary sheet for summary
+    const tempSheetName = 'TEMP_SUMMARY_' + data.employee.employeeId + '_' + Date.now();
+    const tempSheet = ss.insertSheet(tempSheetName);
+
+    // Format employee name
+    const employeeName = `${data.employee.firstName} ${data.employee.middleName || ''} ${data.employee.lastName}`.trim();
+    const position = data.employee.position || '';
+    const office = data.employee.office || '';
+
+    // Format month/year
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthYear = `${monthNames[data.month]} ${data.year}`;
+
+    // Set column widths
+    tempSheet.setColumnWidth(1, 100);  // A: Date
+    tempSheet.setColumnWidth(2, 130);  // B: Day Type
+    tempSheet.setColumnWidth(3, 80);   // C: AM In
+    tempSheet.setColumnWidth(4, 80);   // D: AM Out
+    tempSheet.setColumnWidth(5, 80);   // E: PM In
+    tempSheet.setColumnWidth(6, 80);   // F: PM Out
+    tempSheet.setColumnWidth(7, 90);   // G: Hours Worked
+    tempSheet.setColumnWidth(8, 90);   // H: COC Earned
+
+    let currentRow = 1;
+
+    // Title
+    tempSheet.getRange(currentRow, 1, 1, 8).merge()
+      .setValue('OVERTIME SUMMARY REPORT')
+      .setFontSize(16)
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBackground('#1a73e8')
+      .setFontColor('#ffffff');
+    currentRow += 2;
+
+    // Employee Information Section
+    tempSheet.getRange(currentRow, 1).setValue('Employee:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(employeeName);
+    currentRow++;
+
+    tempSheet.getRange(currentRow, 1).setValue('Position:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(position);
+    currentRow++;
+
+    tempSheet.getRange(currentRow, 1).setValue('Office:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(office);
+    currentRow++;
+
+    tempSheet.getRange(currentRow, 1).setValue('Period:').setFontWeight('bold');
+    tempSheet.getRange(currentRow, 2, 1, 7).merge().setValue(monthYear);
+    currentRow += 2;
+
+    // Table Headers
+    const headers = ['Date', 'Day Type', 'AM In', 'AM Out', 'PM In', 'PM Out', 'Hours Worked', 'COC Earned'];
+    const headerRange = tempSheet.getRange(currentRow, 1, 1, 8);
+    headerRange.setValues([headers])
+      .setFontWeight('bold')
+      .setBackground('#f0f0f0')
+      .setHorizontalAlignment('center')
+      .setBorder(true, true, true, true, true, true);
+    currentRow++;
+
+    // Sort logs by date
+    const sortedLogs = data.logs.slice().sort((a, b) => {
+      return new Date(a.overtimeDate) - new Date(b.overtimeDate);
+    });
+
+    // Data Rows
+    sortedLogs.forEach(log => {
+      const overtimeDate = new Date(log.overtimeDate);
+      const formattedDate = Utilities.formatDate(overtimeDate, 'Asia/Manila', 'MM/dd/yyyy');
+
+      // Determine day type display
+      let dayTypeDisplay = '';
+      if (log.isHoliday) {
+        dayTypeDisplay = log.holidayName || 'Holiday';
+      } else if (log.dayType === 'weekend') {
+        dayTypeDisplay = 'Weekend';
+      } else {
+        dayTypeDisplay = 'Weekday';
+      }
+
+      const rowData = [
+        formattedDate,
+        dayTypeDisplay,
+        log.amIn || '-',
+        log.amOut || '-',
+        log.pmIn || '-',
+        log.pmOut || '-',
+        log.hoursWorked ? log.hoursWorked.toFixed(1) : '0.0',
+        log.earnedHours ? log.earnedHours.toFixed(1) : '0.0'
+      ];
+
+      tempSheet.getRange(currentRow, 1, 1, 8)
+        .setValues([rowData])
+        .setHorizontalAlignment('center')
+        .setBorder(true, true, true, true, false, false);
+
+      // Color code day type
+      if (log.isHoliday) {
+        tempSheet.getRange(currentRow, 2).setBackground('#fce4ec'); // Light red for holidays
+      } else if (log.dayType === 'weekend') {
+        tempSheet.getRange(currentRow, 2).setBackground('#fff9c4'); // Light yellow for weekends
+      }
+
+      currentRow++;
+    });
+
+    // Total Row
+    tempSheet.getRange(currentRow, 1, 1, 6).merge()
+      .setValue('TOTAL:')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('right')
+      .setBackground('#e3f2fd')
+      .setBorder(true, true, true, true, false, false);
+
+    const totalHoursWorked = sortedLogs.reduce((sum, log) => sum + (log.hoursWorked || 0), 0);
+    const totalEarned = sortedLogs.reduce((sum, log) => sum + (log.earnedHours || 0), 0);
+
+    tempSheet.getRange(currentRow, 7)
+      .setValue(totalHoursWorked.toFixed(1))
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBackground('#e3f2fd')
+      .setBorder(true, true, true, true, false, false);
+
+    tempSheet.getRange(currentRow, 8)
+      .setValue(totalEarned.toFixed(1))
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setBackground('#e3f2fd')
+      .setBorder(true, true, true, true, false, false);
+
+    currentRow += 2;
+
+    // Footer note
+    tempSheet.getRange(currentRow, 1, 1, 8).merge()
+      .setValue('This summary is automatically generated with the Certificate of Compensatory Time.')
+      .setFontSize(9)
+      .setFontStyle('italic')
+      .setHorizontalAlignment('center');
+
+    // Hide gridlines
+    tempSheet.setHiddenGridlines(true);
+
+    // Flush changes
+    SpreadsheetApp.flush();
+
+    // Convert to PDF
+    let pdfBlob;
+    try {
+      pdfBlob = convertSheetToPDF(ss, tempSheet);
+    } catch (e) {
+      ss.deleteSheet(tempSheet);
+      throw new Error('Failed to convert summary sheet to PDF: ' + e.toString());
+    }
+
+    // Set PDF filename
+    const pdfFileName = `Overtime_Summary_${data.employee.lastName}, ${data.employee.firstName}_${monthYear}.pdf`;
+    pdfBlob.setName(pdfFileName);
+
+    // Save to Drive (same location as certificate)
+    const CERTIFICATES_FOLDER_ID = '1QltJeBLauIIjITAE8UUTNKwWb3u4r4Nr';
+
+    let mainFolder;
+    try {
+      mainFolder = DriveApp.getFolderById(CERTIFICATES_FOLDER_ID);
+    } catch (e) {
+      throw new Error('Cannot access certificates folder: ' + e.toString());
+    }
+
+    // Get year and month folders
+    const year = data.year;
+    const monthFolderNames = ['01-January', '02-February', '03-March', '04-April', '05-May', '06-June',
+                              '07-July', '08-August', '09-September', '10-October', '11-November', '12-December'];
+    const monthFolderName = monthFolderNames[data.month];
+
+    // Create or get year folder
+    let yearFolder;
+    const yearFolders = mainFolder.getFoldersByName(year.toString());
+    if (yearFolders.hasNext()) {
+      yearFolder = yearFolders.next();
+    } else {
+      yearFolder = mainFolder.createFolder(year.toString());
+    }
+
+    // Create or get month folder
+    let monthFolder;
+    const monthFolders = yearFolder.getFoldersByName(monthFolderName);
+    if (monthFolders.hasNext()) {
+      monthFolder = monthFolders.next();
+    } else {
+      monthFolder = yearFolder.createFolder(monthFolderName);
+    }
+
+    // Save PDF
+    let pdfFile;
+    try {
+      pdfFile = monthFolder.createFile(pdfBlob);
+    } catch (e) {
+      ss.deleteSheet(tempSheet);
+      throw new Error('Failed to save summary PDF to Drive: ' + e.toString());
+    }
+
+    const pdfUrl = pdfFile.getUrl();
+    const pdfId = pdfFile.getId();
+
+    // Delete temporary sheet
+    ss.deleteSheet(tempSheet);
+
+    return {
+      url: pdfUrl,
+      id: pdfId
+    };
+
+  } catch (error) {
+    Logger.log('Summary PDF generation error: ' + error.toString());
     throw error;
   }
 }

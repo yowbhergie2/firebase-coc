@@ -1485,13 +1485,26 @@
           // PDF Certificate row (always present since PDF is required for success)
           message += `
                   <tr>
-                    <td><strong>PDF Certificate</strong></td>
+                    <td><strong>Certificate</strong></td>
                     <td>
                       <a href="${result.pdfUrl}" target="_blank" class="btn btn-sm btn-primary">
-                        <i class="bi bi-file-pdf"></i> View/Download PDF
+                        <i class="bi bi-file-pdf"></i> View/Download
                       </a>
                     </td>
                   </tr>`;
+
+          // Summary PDF row
+          if (result.summaryPdfUrl) {
+            message += `
+                  <tr>
+                    <td><strong>Overtime Summary</strong></td>
+                    <td>
+                      <a href="${result.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success">
+                        <i class="bi bi-file-pdf"></i> View/Download
+                      </a>
+                    </td>
+                  </tr>`;
+          }
 
           message += `
                 </tbody>
