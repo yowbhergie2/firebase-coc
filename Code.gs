@@ -1721,11 +1721,33 @@ function logCto_SERVER(data) {
       const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
       if (batchDoc && batchDoc.obj) {
         const batchData = batchDoc.obj;
-        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+
+        // Get month and year from batch data
+        let month = 'Unknown';
+        let year = 'Unknown';
+
+        if (batchData.earnedMonth && batchData.earnedYear) {
+          // Use earnedMonth and earnedYear fields
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          month = monthNames[batchData.earnedMonth - 1] || 'Unknown';
+          year = batchData.earnedYear;
+        } else if (batchData.monthYear) {
+          // Parse from monthYear format (e.g., "2024-10")
+          const parts = batchData.monthYear.split('-');
+          if (parts.length === 2) {
+            year = parseInt(parts[0]);
+            const monthIdx = parseInt(parts[1]) - 1;
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            month = monthNames[monthIdx] || 'Unknown';
+          }
+        }
+
         batchInfo.push({
           hours: usage.hoursUsed,
-          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
-          year: certDate ? certDate.getFullYear() : 'Unknown'
+          month: month,
+          year: year
         });
       }
 
@@ -2090,11 +2112,33 @@ function updateCto_SERVER(data) {
       const batchDoc = db.getDocument('creditBatches/' + usage.batchId);
       if (batchDoc && batchDoc.obj) {
         const batchData = batchDoc.obj;
-        const certDate = batchData.certificationDate ? new Date(batchData.certificationDate) : null;
+
+        // Get month and year from batch data
+        let month = 'Unknown';
+        let year = 'Unknown';
+
+        if (batchData.earnedMonth && batchData.earnedYear) {
+          // Use earnedMonth and earnedYear fields
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          month = monthNames[batchData.earnedMonth - 1] || 'Unknown';
+          year = batchData.earnedYear;
+        } else if (batchData.monthYear) {
+          // Parse from monthYear format (e.g., "2024-10")
+          const parts = batchData.monthYear.split('-');
+          if (parts.length === 2) {
+            year = parseInt(parts[0]);
+            const monthIdx = parseInt(parts[1]) - 1;
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            month = monthNames[monthIdx] || 'Unknown';
+          }
+        }
+
         batchInfo.push({
           hours: usage.hoursUsed,
-          month: certDate ? certDate.toLocaleDateString('en-US', { month: 'long' }) : 'Unknown',
-          year: certDate ? certDate.getFullYear() : 'Unknown'
+          month: month,
+          year: year
         });
       }
 
