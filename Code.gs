@@ -1780,17 +1780,26 @@ function logCto_SERVER(data) {
         });
       }
 
-      // Get current batch to calculate new usedHours
+      // Get current batch to preserve all existing fields
       const currentBatchDoc = db.getDocument('creditBatches/' + usage.batchId);
-      const currentUsedHours = (currentBatchDoc && currentBatchDoc.obj && currentBatchDoc.obj.usedHours) || 0;
+      if (!currentBatchDoc || !currentBatchDoc.obj) {
+        Logger.log('Warning: Batch document not found: ' + usage.batchId);
+        continue;
+      }
 
-      db.updateDocument('creditBatches/' + usage.batchId, {
+      const currentBatch = currentBatchDoc.obj;
+      const currentUsedHours = currentBatch.usedHours || 0;
+
+      // Merge existing fields with updates to preserve all data
+      const updatedBatch = Object.assign({}, currentBatch, {
         remainingHours: usage.newRemaining,
         usedHours: currentUsedHours + usage.hoursUsed,
         status: newStatus,
         lastUsedDate: filingDate.toISOString(),
         lastUsedBy: Session.getActiveUser().getEmail()
       });
+
+      db.updateDocument('creditBatches/' + usage.batchId, updatedBatch);
     });
 
     const newBalance = availableBalance - hoursUsed;
@@ -2106,11 +2115,14 @@ function updateCto_SERVER(data) {
       const currentUsedHours = batch.data.usedHours || 0;
       const newUsedHours = Math.max(0, currentUsedHours - toRestore);
 
-      db.updateDocument('creditBatches/' + batch.id, {
+      // Merge existing fields with updates to preserve all data
+      const updatedBatch = Object.assign({}, batch.data, {
         remainingHours: newRemaining,
         usedHours: newUsedHours,
         status: newStatus
       });
+
+      db.updateDocument('creditBatches/' + batch.id, updatedBatch);
 
       remainingToRestore -= toRestore;
 
@@ -2237,17 +2249,26 @@ function updateCto_SERVER(data) {
         });
       }
 
-      // Get current batch to calculate new usedHours (after restoration)
+      // Get current batch to preserve all existing fields
       const currentBatchDoc = db.getDocument('creditBatches/' + usage.batchId);
-      const currentUsedHours = (currentBatchDoc && currentBatchDoc.obj && currentBatchDoc.obj.usedHours) || 0;
+      if (!currentBatchDoc || !currentBatchDoc.obj) {
+        Logger.log('Warning: Batch document not found: ' + usage.batchId);
+        continue;
+      }
 
-      db.updateDocument('creditBatches/' + usage.batchId, {
+      const currentBatch = currentBatchDoc.obj;
+      const currentUsedHours = currentBatch.usedHours || 0;
+
+      // Merge existing fields with updates to preserve all data
+      const updatedBatch = Object.assign({}, currentBatch, {
         remainingHours: usage.newRemaining,
         usedHours: currentUsedHours + usage.hoursUsed,
         status: newStatus,
         lastUsedDate: filingDate.toISOString(),
         lastUsedBy: Session.getActiveUser().getEmail()
       });
+
+      db.updateDocument('creditBatches/' + usage.batchId, updatedBatch);
     });
 
     const newBalance = availableBalance - newHoursUsed;
