@@ -2503,16 +2503,28 @@ function updateCto_SERVER(data) {
 
     db.updateDocument('ledger/' + data.ledgerId, updatedLedgerData);
 
-    // Prepare restored batches info if hours were restored
+    // Calculate NET hours restored for display (oldHoursUsed - newHoursUsed)
+    // This is the actual benefit to the user, not the gross restoration
+    const netHoursRestored = oldHoursUsed - newHoursUsed;
+
+    // Prepare restored batches info - show where the NET restoration went
     let restoredBatches = [];
-    if (hoursActuallyRestored > 0 && oldLedger.deductedFrom) {
-      for (let i = oldLedger.deductedFrom.length - 1; i >= 0; i--) {
+    if (netHoursRestored > 0 && oldLedger.deductedFrom) {
+      // Show the batches from the old deduction
+      // But adjust the hours to show the NET restoration, not gross
+      let remainingToShow = netHoursRestored;
+
+      for (let i = oldLedger.deductedFrom.length - 1; i >= 0 && remainingToShow > 0; i--) {
         const deductionInfo = oldLedger.deductedFrom[i];
+        const hoursToShow = Math.min(deductionInfo.hours, remainingToShow);
+
         restoredBatches.push({
-          hours: deductionInfo.hours,
+          hours: hoursToShow,
           month: deductionInfo.month,
           year: deductionInfo.year
         });
+
+        remainingToShow -= hoursToShow;
       }
     }
 
@@ -2523,7 +2535,7 @@ function updateCto_SERVER(data) {
       newBalance: newBalance,
       creditedFrom: batchInfo,
       originalHours: oldHoursUsed,
-      hoursRestored: hoursActuallyRestored,
+      hoursRestored: netHoursRestored,  // Changed to NET restoration
       restoredTo: restoredBatches
     };
 
