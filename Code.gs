@@ -1765,8 +1765,6 @@ function logCto_SERVER(data) {
     
     const ctoId = 'CTO_' + Utilities.getUuid();
     const filingDate = new Date(data.filingDate);
-    const dateFrom = new Date(data.dateFrom);
-    const dateTo = new Date(data.dateTo);
 
     // Collect batch information for display
     const batchInfo = [];
@@ -2300,8 +2298,6 @@ function updateCto_SERVER(data) {
     }
 
     const filingDate = new Date(data.filingDate);
-    const dateFrom = new Date(data.dateFrom);
-    const dateTo = new Date(data.dateTo);
 
     // Collect batch information for display
     const batchInfo = [];
