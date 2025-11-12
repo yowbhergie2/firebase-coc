@@ -4511,18 +4511,25 @@
             </div>
             <div class="mb-0">
               <label for="cancel-reason" class="form-label"><strong>Reason for Cancellation:</strong> <span class="text-danger">*</span></label>
-              <textarea class="form-control" id="cancel-reason" rows="3" placeholder="Please provide a reason for cancelling this CTO application..." required></textarea>
+              <textarea class="form-control" id="cancel-reason" rows="3" placeholder="Please provide a reason for cancelling this CTO application..." required>EXIGENCY OF SERVICE</textarea>
               <div class="text-danger small mt-1" id="cancel-reason-error" style="display: none;">Please provide a reason for cancellation.</div>
+            </div>
+            <div id="cancel-spinner-container" class="text-center mt-3" style="display: none;">
+              <div class="spinner-border text-warning" role="status">
+                <span class="visually-hidden">Cancelling...</span>
+              </div>
+              <p class="mt-2 text-muted">Cancelling CTO application...</p>
             </div>
           </div>
         `,
         icon: 'bi-exclamation-triangle-fill',
         iconColor: 'text-warning',
         buttons: [
-          { text: 'Cancel', class: 'btn-secondary', dismiss: true },
+          { text: 'Cancel', class: 'btn-secondary', dismiss: true, id: 'cancel-modal-btn' },
           {
             text: 'Yes, Cancel CTO',
             class: 'btn-warning',
+            id: 'confirm-cancel-btn',
             callback: async function() {
               const reasonField = document.getElementById('cancel-reason');
               const errorMsg = document.getElementById('cancel-reason-error');
@@ -4535,6 +4542,16 @@
                 return false; // Prevent modal from closing
               }
 
+              // Show spinner and disable buttons
+              const spinnerContainer = document.getElementById('cancel-spinner-container');
+              const confirmBtn = document.getElementById('confirm-cancel-btn');
+              const cancelBtn = document.getElementById('cancel-modal-btn');
+
+              spinnerContainer.style.display = 'block';
+              reasonField.disabled = true;
+              if (confirmBtn) confirmBtn.disabled = true;
+              if (cancelBtn) cancelBtn.disabled = true;
+
               try {
                 const result = await new Promise((resolve, reject) => {
                   google.script.run
@@ -4544,13 +4561,21 @@
                 });
 
                 if (result.success) {
-                  Modal.success('CTO Cancelled', `Successfully cancelled CTO and restored ${result.hoursRestored.toFixed(1)} hours.`);
+                  // Use custom message if provided (includes forfeit info)
+                  const message = result.message || `Successfully cancelled CTO and restored ${result.hoursRestored.toFixed(1)} hours.`;
+                  Modal.success('CTO Cancelled', message);
                   loadCtoApplications();
                 } else {
                   Modal.error('Error', result.error);
                 }
               } catch (error) {
                 Modal.error('Error', 'Failed to cancel CTO: ' + error);
+              } finally {
+                // Hide spinner and re-enable buttons
+                spinnerContainer.style.display = 'none';
+                reasonField.disabled = false;
+                if (confirmBtn) confirmBtn.disabled = false;
+                if (cancelBtn) cancelBtn.disabled = false;
               }
             }
           }
@@ -4842,8 +4867,17 @@
                 ).join('<br>') + '</small>';
               }
 
+              // Format remarks - show cancellation reason if cancelled
+              let remarksHtml = '<span class="text-muted">-</span>';
+              if (status === 'Cancelled' && app.cancellationReason) {
+                remarksHtml = `<small class="text-danger"><strong>Cancelled:</strong> ${app.cancellationReason}</small>`;
+              }
+
+              // Add styling for cancelled rows
+              const rowStyle = status === 'Cancelled' ? 'style="background-color: #fff3cd;"' : '';
+
               return `
-                <tr>
+                <tr ${rowStyle}>
                   <td>${filingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                   <td>${app.employeeName}</td>
                   <td>${dateFrom.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${dateTo.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
@@ -4851,19 +4885,20 @@
                   <td>${deductedFromHtml}</td>
                   <td><strong class="text-primary">${app.balanceAfter.toFixed(1)}</strong> hrs</td>
                   <td>${statusBadge}</td>
+                  <td>${remarksHtml}</td>
                   <td>${actions}</td>
                 </tr>
               `;
             }).join('');
           } else {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">No CTO applications match the selected filters</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center">No CTO applications match the selected filters</td></tr>';
           }
         } else {
-          tbody.innerHTML = '<tr><td colspan="8" class="text-center">No CTO applications found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="9" class="text-center">No CTO applications found</td></tr>';
         }
       } catch (error) {
         loadingDiv.style.display = 'none';
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading applications</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-danger">Error loading applications</td></tr>';
         Modal.error('Error', 'Failed to load CTO applications: ' + error);
       }
     };

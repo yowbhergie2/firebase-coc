@@ -1799,6 +1799,7 @@ function logCto_SERVER(data) {
         }
 
         batchInfo.push({
+          batchId: usage.batchId,
           hours: usage.hoursUsed,
           month: month,
           year: year
@@ -2171,54 +2172,91 @@ function updateCto_SERVER(data) {
       return monthA - monthB;
     });
 
-    // Check if any batches that would receive restored hours are expired
+    // Restore hours to the EXACT batches where they were originally deducted from
     const nowManilaStr = Utilities.formatDate(new Date(), 'Asia/Manila', 'yyyy-MM-dd');
     const todayManila = new Date(nowManilaStr);
     todayManila.setHours(0, 0, 0, 0);
 
-    let tempRestore = oldHoursUsed;
-    for (let i = 0; i < batches.length && tempRestore > 0; i++) {
-      const batch = batches[i];
-      if (batch.data.expiryDate) {
-        const expiryDate = new Date(batch.data.expiryDate);
-        expiryDate.setHours(0, 0, 0, 0);
+    let hoursActuallyRestored = 0;
+    let batchesWithExpiredHours = [];
 
-        if (todayManila > expiryDate) {
-          return {
-            success: false,
-            error: 'Cannot update CTO: One or more COC batches have already expired. Expired COCs cannot receive restored hours.'
-          };
+    if (oldLedger.deductedFrom && oldLedger.deductedFrom.length > 0) {
+      // First, check if any of the batches are expired
+      for (let i = oldLedger.deductedFrom.length - 1; i >= 0; i--) {
+        const deductionInfo = oldLedger.deductedFrom[i];
+        const batchId = deductionInfo.batchId;
+        const hoursToRestoreToBatch = deductionInfo.hours;
+
+        if (!batchId) {
+          continue;
+        }
+
+        const batchDoc = db.getDocument('creditBatches/' + batchId);
+        if (!batchDoc || !batchDoc.obj) {
+          continue;
+        }
+
+        const batch = batchDoc.obj;
+
+        // Check if the batch has expired
+        if (batch.expiryDate) {
+          const expiryDate = new Date(batch.expiryDate);
+          expiryDate.setHours(0, 0, 0, 0);
+
+          if (todayManila > expiryDate) {
+            batchesWithExpiredHours.push({
+              month: deductionInfo.month,
+              year: deductionInfo.year,
+              hours: hoursToRestoreToBatch
+            });
+          }
         }
       }
-      tempRestore -= Math.min(batch.data.remainingHours || 0, tempRestore);
-    }
 
-    // Restore hours to batches
-    let remainingToRestore = oldHoursUsed;
-    for (let i = 0; i < batches.length && remainingToRestore > 0; i++) {
-      const batch = batches[i];
-      const toRestore = Math.min(remainingToRestore, oldHoursUsed);
+      // If there are expired batches, return error
+      if (batchesWithExpiredHours.length > 0) {
+        const expiredInfo = batchesWithExpiredHours.map(b =>
+          `${b.hours.toFixed(1)} hrs from ${b.month} ${b.year}`
+        ).join(', ');
+        return {
+          success: false,
+          error: `Cannot update CTO: The following COC batches have expired and cannot receive restored hours: ${expiredInfo}. Expired COCs cannot be restored.`
+        };
+      }
 
-      const newRemaining = batch.data.remainingHours + toRestore;
-      const newStatus = newRemaining > 0 ? 'Active' : batch.data.status;
+      // Restore to the exact batches in reverse order (most recent first)
+      for (let i = oldLedger.deductedFrom.length - 1; i >= 0; i--) {
+        const deductionInfo = oldLedger.deductedFrom[i];
+        const batchId = deductionInfo.batchId;
+        const hoursToRestoreToBatch = deductionInfo.hours;
 
-      // Decrease usedHours when restoring
-      const currentUsedHours = batch.data.usedHours || 0;
-      const newUsedHours = Math.max(0, currentUsedHours - toRestore);
+        if (!batchId) {
+          continue;
+        }
 
-      // Merge existing fields with updates to preserve all data
-      const updatedBatch = Object.assign({}, batch.data, {
-        remainingHours: newRemaining,
-        usedHours: newUsedHours,
-        status: newStatus
-      });
+        const batchDoc = db.getDocument('creditBatches/' + batchId);
+        if (!batchDoc || !batchDoc.obj) {
+          continue;
+        }
 
-      db.updateDocument('creditBatches/' + batch.id, updatedBatch);
+        const batch = batchDoc.obj;
 
-      remainingToRestore -= toRestore;
+        // Restore hours to this batch
+        const newRemaining = batch.remainingHours + hoursToRestoreToBatch;
+        const currentUsedHours = batch.usedHours || 0;
+        const newUsedHours = Math.max(0, currentUsedHours - hoursToRestoreToBatch);
+        const newStatus = newRemaining > 0 ? 'Active' : batch.status;
 
-      // If we've restored all hours, stop
-      if (remainingToRestore <= 0) break;
+        // Merge existing fields with updates to preserve all data
+        const updatedBatch = Object.assign({}, batch, {
+          remainingHours: newRemaining,
+          usedHours: newUsedHours,
+          status: newStatus
+        });
+
+        db.updateDocument('creditBatches/' + batchId, updatedBatch);
+        hoursActuallyRestored += hoursToRestoreToBatch;
+      }
     }
 
     // Step 2: Deduct new hours (same logic as logCto_SERVER)
@@ -2332,6 +2370,7 @@ function updateCto_SERVER(data) {
         }
 
         batchInfo.push({
+          batchId: usage.batchId,
           hours: usage.hoursUsed,
           month: month,
           year: year
@@ -2435,85 +2474,82 @@ function cancelCto_SERVER(ledgerId, reason) {
 
     const hoursToRestore = Math.abs(ledger.hoursChange);
 
-    // Get all credit batches for the employee
-    const batchDocs = db.getDocuments('creditBatches');
-    const batches = [];
+    // Get today's date in Manila timezone for expiry check
+    const nowManilaStr = Utilities.formatDate(new Date(), 'Asia/Manila', 'yyyy-MM-dd');
+    const todayManila = new Date(nowManilaStr);
+    todayManila.setHours(0, 0, 0, 0);
 
-    for (let i = 0; i < batchDocs.length; i++) {
-      const doc = batchDocs[i];
-      const batch = doc.obj;
-      if (!batch || batch.employeeId !== ledger.employeeId) {
-        continue;
+    let hoursActuallyRestored = 0;
+    let hoursForfeitedDueToExpiry = 0;
+
+    // Restore hours to the EXACT batches where they were originally deducted from
+    if (ledger.deductedFrom && ledger.deductedFrom.length > 0) {
+      // Restore to the exact batches in reverse order (most recent first)
+      for (let i = ledger.deductedFrom.length - 1; i >= 0; i--) {
+        const deductionInfo = ledger.deductedFrom[i];
+        const batchId = deductionInfo.batchId;
+        const hoursToRestoreToBatch = deductionInfo.hours;
+
+        if (!batchId) {
+          // Legacy data without batchId - skip
+          Logger.log('Warning: No batchId in deductedFrom info, skipping');
+          hoursForfeitedDueToExpiry += hoursToRestoreToBatch;
+          continue;
+        }
+
+        // Get the batch
+        const batchDoc = db.getDocument('creditBatches/' + batchId);
+        if (!batchDoc || !batchDoc.obj) {
+          Logger.log('Warning: Batch not found: ' + batchId);
+          hoursForfeitedDueToExpiry += hoursToRestoreToBatch;
+          continue;
+        }
+
+        const batch = batchDoc.obj;
+
+        // Check if the batch has expired
+        if (batch.expiryDate) {
+          const expiryDate = new Date(batch.expiryDate);
+          expiryDate.setHours(0, 0, 0, 0);
+
+          if (todayManila > expiryDate) {
+            // COC has expired - forfeit these hours
+            Logger.log('Batch ' + batchId + ' has expired. Forfeiting ' + hoursToRestoreToBatch + ' hours.');
+            hoursForfeitedDueToExpiry += hoursToRestoreToBatch;
+            continue;
+          }
+        }
+
+        // Restore hours to this batch
+        const newRemaining = batch.remainingHours + hoursToRestoreToBatch;
+        const currentUsedHours = batch.usedHours || 0;
+        const newUsedHours = Math.max(0, currentUsedHours - hoursToRestoreToBatch);
+        const newStatus = newRemaining > 0 ? 'Active' : batch.status;
+
+        // Merge existing fields with updates to preserve all data
+        const updatedBatch = Object.assign({}, batch, {
+          remainingHours: newRemaining,
+          usedHours: newUsedHours,
+          status: newStatus
+        });
+
+        db.updateDocument('creditBatches/' + batchId, updatedBatch);
+        hoursActuallyRestored += hoursToRestoreToBatch;
       }
-
-      const batchId = doc.name.split('/').pop();
-      batches.push({ id: batchId, data: batch });
+    } else {
+      // Fallback: If no deductedFrom info, log warning and forfeit
+      Logger.log('Warning: No deductedFrom information in ledger. Cannot restore hours.');
+      hoursForfeitedDueToExpiry = hoursToRestore;
     }
 
-    // Sort batches by earned month/year (TRUE FIFO - oldest earned first)
-    batches.sort((a, b) => {
-      // Get year and month for batch A
-      let yearA = a.data.earnedYear || 9999;
-      let monthA = a.data.earnedMonth || 12;
-
-      // If not present, try parsing from monthYear field
-      if (yearA === 9999 && a.data.monthYear) {
-        const parts = a.data.monthYear.split('-');
-        if (parts.length === 2) {
-          yearA = parseInt(parts[0]);
-          monthA = parseInt(parts[1]);
-        }
-      }
-
-      // Get year and month for batch B
-      let yearB = b.data.earnedYear || 9999;
-      let monthB = b.data.earnedMonth || 12;
-
-      // If not present, try parsing from monthYear field
-      if (yearB === 9999 && b.data.monthYear) {
-        const parts = b.data.monthYear.split('-');
-        if (parts.length === 2) {
-          yearB = parseInt(parts[0]);
-          monthB = parseInt(parts[1]);
-        }
-      }
-
-      // Sort by year first, then by month
-      if (yearA !== yearB) {
-        return yearA - yearB;
-      }
-      return monthA - monthB;
-    });
-
-    // Restore hours to batches (FIFO)
-    let remainingToRestore = hoursToRestore;
-    for (let i = 0; i < batches.length && remainingToRestore > 0; i++) {
-      const batch = batches[i];
-      const toRestore = Math.min(remainingToRestore, hoursToRestore);
-
-      const newRemaining = batch.data.remainingHours + toRestore;
-      const newStatus = newRemaining > 0 ? 'Active' : batch.data.status;
-
-      db.updateDocument('creditBatches/' + batch.id, {
-        remainingHours: newRemaining,
-        status: newStatus
-      });
-
-      remainingToRestore -= toRestore;
-
-      // If we've restored all hours, stop
-      if (remainingToRestore <= 0) break;
-    }
-
-    // Calculate new balance
+    // Calculate new balance by getting all active batches for the employee
     let newBalance = 0;
-    for (let i = 0; i < batches.length; i++) {
-      const batch = batches[i];
-      const updatedBatchDoc = db.getDocument('creditBatches/' + batch.id);
-      const updatedBatch = updatedBatchDoc.obj;
-
-      if (updatedBatch.status === 'Active') {
-        newBalance += Number(updatedBatch.remainingHours || 0);
+    const allBatchDocs = db.getDocuments('creditBatches');
+    for (let i = 0; i < allBatchDocs.length; i++) {
+      const doc = allBatchDocs[i];
+      const batch = doc.obj;
+      if (batch && batch.employeeId === ledger.employeeId && batch.status === 'Active') {
+        newBalance += Number(batch.remainingHours || 0);
       }
     }
 
@@ -2525,10 +2561,18 @@ function cancelCto_SERVER(ledgerId, reason) {
       cancellationReason: reason.trim()
     });
 
+    // Prepare response message
+    let message = `Successfully cancelled CTO and restored ${hoursActuallyRestored.toFixed(1)} hours.`;
+    if (hoursForfeitedDueToExpiry > 0) {
+      message += ` ${hoursForfeitedDueToExpiry.toFixed(1)} hours were forfeited because the COC had expired.`;
+    }
+
     return {
       success: true,
-      hoursRestored: hoursToRestore,
-      newBalance: newBalance
+      hoursRestored: hoursActuallyRestored,
+      hoursForfeitedDueToExpiry: hoursForfeitedDueToExpiry,
+      newBalance: newBalance,
+      message: message
     };
 
   } catch (error) {
