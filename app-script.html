@@ -1749,7 +1749,7 @@
 
       try {
         loadingDiv.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
+        tbody.innerHTML = ''; // Clear tbody, loading message is shown in loadingDiv
 
         const result = await new Promise((resolve, reject) => {
           google.script.run
@@ -3998,6 +3998,11 @@
           // Refresh overtime context to validate current selection
           if (typeof updateOvertimeContext === 'function') {
             updateOvertimeContext();
+          }
+        } else if (page === 'view-certificates') {
+          // Load certificates with current filters (defaults to All Years)
+          if (typeof loadCertificates === 'function') {
+            loadCertificates();
           }
         }
       });
