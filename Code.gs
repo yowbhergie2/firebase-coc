@@ -957,9 +957,9 @@ function generateCOCCertificate_SERVER(data) {
       pdfUrl: pdfUrl,
       employeeName: employeeFullName,
       monthYear: `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][data.month]} ${data.year}`,
-      // Date format already correct (MMMM d, yyyy) - produces "September 1, 2025"
-      dateOfIssuance: Utilities.formatDate(dateOfIssuance, Session.getScriptTimeZone(), 'MMMM d, yyyy'),
-      validUntil: Utilities.formatDate(validUntil, Session.getScriptTimeZone(), 'MMMM d, yyyy')
+      // Date format: MM/dd/yyyy - produces "09/01/2025"
+      dateOfIssuance: Utilities.formatDate(dateOfIssuance, Session.getScriptTimeZone(), 'MM/dd/yyyy'),
+      validUntil: Utilities.formatDate(validUntil, Session.getScriptTimeZone(), 'MM/dd/yyyy')
     };
 
   } catch (error) {
@@ -1212,9 +1212,9 @@ function generateCertificatePDF(data) {
     const office = (data.employee.office || '').toUpperCase();
     const totalHours = data.totalHours.toFixed(1);
     
-    // Format dates using Asia/Manila timezone
-    const dateIssued = Utilities.formatDate(data.dateOfIssuance, 'Asia/Manila', 'M/d/yyyy');
-    const validUntil = Utilities.formatDate(data.validUntil, 'Asia/Manila', 'M/d/yyyy');
+    // Format dates using Asia/Manila timezone with MM/dd/yyyy format
+    const dateIssued = Utilities.formatDate(data.dateOfIssuance, 'Asia/Manila', 'MM/dd/yyyy');
+    const validUntil = Utilities.formatDate(data.validUntil, 'Asia/Manila', 'MM/dd/yyyy');
 
     // Ensure the sheet has enough columns (at least 6 columns = F)
     const maxColumns = tempSheet.getMaxColumns();
