@@ -133,12 +133,12 @@ function checkOvertimeBlocks_SERVER(employeeId, month, year) {
     const monthYearStr = `${year}-${String(month + 1).padStart(2, '0')}`;
 
     // Check for existing certificate for this month/year
-    // Query all certificates for employee and filter by monthYear in code
+    // Query all certificates for employee and filter by month/year in code
     const allCertificatesQuery = db.getDocuments('certificates');
 
     for (let i = 0; i < allCertificatesQuery.length; i++) {
       const cert = allCertificatesQuery[i].obj;
-      if (cert.employeeId === employeeId && cert.monthYear === monthYearStr) {
+      if (cert.employeeId === employeeId && cert.month === month && cert.year === year) {
         return {
           success: false,
           error: 'A certificate already exists for this month. Cannot log overtime.'
