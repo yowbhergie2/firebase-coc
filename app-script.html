@@ -1266,6 +1266,11 @@
     })();
 
     // Tab 1: By Employee - Load uncertified months
+    // Debounce timer to prevent too many rapid calls
+    let loadUncertifiedMonthsTimer = null;
+    let lastLoadedEmployeeId = null;
+    let cachedUncertifiedResult = null;
+
     window.loadUncertifiedMonths = async function() {
       const employeeId = document.getElementById('cert-employee').value;
       const tableSection = document.getElementById('cert-employee-table-section');
@@ -1278,51 +1283,80 @@
         return;
       }
 
-      try {
-        // Show loading spinner
-        loadingDiv.style.display = 'block';
-        tableSection.style.display = 'none';
-
-        const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getUncertifiedMonthsByEmployee_SERVER(employeeId);
-        });
-
-        // Hide loading spinner and re-enable fields
-        loadingDiv.style.display = 'none';
-        document.getElementById('cert-batch-month').disabled = false;
-        document.getElementById('cert-batch-year').disabled = false;
-        document.getElementById('cert-batch-load-btn').disabled = false;
-
-        if (result.success && result.months.length > 0) {
-          tbody.innerHTML = result.months.map(month => `
-            <tr>
-              <td>${certMonthNames[month.month]} ${month.year}</td>
-              <td>${month.entries.length}</td>
-              <td><strong>${month.totalHours.toFixed(1)}</strong> hrs</td>
-              <td>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="viewMonthEntries('${employeeId}', ${month.month}, ${month.year})">
-                  <i class="bi bi-eye"></i> View
-                </button>
-                <button class="btn btn-sm btn-success" onclick="openGenerateCertModal('${employeeId}', ${month.month}, ${month.year}, ${month.totalHours}, ${month.entries.length})">
-                  <i class="bi bi-file-earmark-check"></i> Generate
-                </button>
-              </td>
-            </tr>
-          `).join('');
-          tableSection.style.display = 'block';
-        } else {
-          tbody.innerHTML = '<tr><td colspan="4" class="text-center">No uncertified overtime logs</td></tr>';
-          tableSection.style.display = 'block';
-        }
-
-      } catch (error) {
-        loadingDiv.style.display = 'none';
-        Modal.error('Error', 'Failed to load uncertified months: ' + error);
+      // Use cached result if same employee
+      if (lastLoadedEmployeeId === employeeId && cachedUncertifiedResult) {
+        renderUncertifiedMonths(cachedUncertifiedResult, tbody, tableSection, loadingDiv, employeeId);
+        return;
       }
+
+      // Clear any pending timer
+      if (loadUncertifiedMonthsTimer) {
+        clearTimeout(loadUncertifiedMonthsTimer);
+      }
+
+      // Debounce: wait 300ms before making the call
+      loadUncertifiedMonthsTimer = setTimeout(async () => {
+        try {
+          // Show loading spinner
+          loadingDiv.style.display = 'block';
+          tableSection.style.display = 'none';
+
+          const result = await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .getUncertifiedMonthsByEmployee_SERVER(employeeId);
+          });
+
+          // Cache the result
+          lastLoadedEmployeeId = employeeId;
+          cachedUncertifiedResult = result;
+
+          renderUncertifiedMonths(result, tbody, tableSection, loadingDiv, employeeId);
+
+        } catch (error) {
+          loadingDiv.style.display = 'none';
+
+          // Better error handling for rate limits
+          if (error.message && error.message.includes('429')) {
+            Modal.error('Too Many Requests', 'Please wait a moment and try again. The system is currently rate-limited.');
+          } else {
+            Modal.error('Error', 'Failed to load uncertified months: ' + error);
+          }
+        }
+      }, 300); // 300ms debounce
     };
+
+    // Helper function to render uncertified months
+    function renderUncertifiedMonths(result, tbody, tableSection, loadingDiv, employeeId) {
+      // Hide loading spinner and re-enable fields
+      loadingDiv.style.display = 'none';
+      document.getElementById('cert-batch-month').disabled = false;
+      document.getElementById('cert-batch-year').disabled = false;
+      document.getElementById('cert-batch-load-btn').disabled = false;
+
+      if (result.success && result.months.length > 0) {
+        tbody.innerHTML = result.months.map(month => `
+          <tr>
+            <td>${certMonthNames[month.month]} ${month.year}</td>
+            <td>${month.entries.length}</td>
+            <td><strong>${month.totalHours.toFixed(1)}</strong> hrs</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="viewMonthEntries('${employeeId}', ${month.month}, ${month.year})">
+                <i class="bi bi-eye"></i> View
+              </button>
+              <button class="btn btn-sm btn-success" onclick="openGenerateCertModal('${employeeId}', ${month.month}, ${month.year}, ${month.totalHours}, ${month.entries.length})">
+                <i class="bi bi-file-earmark-check"></i> Generate
+              </button>
+            </td>
+          </tr>
+        `).join('');
+        tableSection.style.display = 'block';
+      } else {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No uncertified overtime logs</td></tr>';
+        tableSection.style.display = 'block';
+      }
+    }
 
     // View entries modal
     window.viewMonthEntries = async function(employeeId, month, year) {
@@ -2076,10 +2110,13 @@
           document.getElementById('ledger-balance').textContent = '0.00';
         });
 
+        // Query ledger with most recent transaction first (DESC order)
+        // Composite index created for: employeeId, transactionDate DESC, createdAt DESC
         const ledgerQ = query(
           collection(db, 'ledger'),
           where('employeeId', '==', employeeId),
-          orderBy('transactionDate', 'desc')
+          orderBy('transactionDate', 'desc'),
+          orderBy('createdAt', 'desc')
         );
 
         onSnapshot(ledgerQ, async (snapshot) => {
@@ -2166,8 +2203,16 @@
                 const dateRange = ledger.inclusiveDateFrom && ledger.inclusiveDateTo
                   ? `${new Date(ledger.inclusiveDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })} - ${new Date(ledger.inclusiveDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}`
                   : '';
-                particularsHtml = `<strong>CTO Application</strong><br><small class="text-muted">${dateRange}</small>`;
-                particularsText = `CTO Application - ${dateRange}`;
+
+                // Check if CTO is cancelled
+                const isCancelled = ledger.status === 'Cancelled';
+                const statusBadge = isCancelled
+                  ? '<span class="badge bg-danger ms-1">CANCELLED</span>'
+                  : '';
+                const cancelledText = isCancelled ? ' (CANCELLED)' : '';
+
+                particularsHtml = `<strong>CTO Application${statusBadge}</strong><br><small class="text-muted">${dateRange}</small>`;
+                particularsText = `CTO Application${cancelledText} - ${dateRange}`;
                 usedHtml = `<span class="text-danger"><strong>${Math.abs(ledger.hoursChange).toFixed(2)}</strong></span>`;
                 usedValue = Math.abs(ledger.hoursChange).toFixed(2);
                 viewDetailsHtml = `<button class="btn btn-sm btn-outline-primary" onclick="viewCtoDetails('${ledger.ledgerId}')"><i class="bi bi-eye"></i> View</button>`;
@@ -4087,6 +4132,10 @@
             // Trigger day breakdown generation
             generateDayBreakdown();
 
+            // Store original hours FIRST for restore remarks check
+            const originalHours = Math.abs(cto.hoursChange || 0);
+            document.getElementById('cto-original-hours').value = originalHours;
+
             // Set day selections if dayBreakdown exists
             if (cto.dayBreakdown) {
               setTimeout(() => {
@@ -4096,15 +4145,7 @@
                   if (radio) radio.checked = true;
                 });
                 calculateCtototalHours();
-
-                // Store original hours for restore remarks check
-                const originalHours = Math.abs(cto.hoursChange || 0);
-                document.getElementById('cto-original-hours').value = originalHours;
               }, 100);
-            } else {
-              // If no dayBreakdown, still store original hours
-              const originalHours = Math.abs(cto.hoursChange || 0);
-              document.getElementById('cto-original-hours').value = originalHours;
             }
 
             // Show balance
@@ -4113,6 +4154,9 @@
             // Change button text and show cancel button
             document.getElementById('cto-submit-text').textContent = 'Update CTO';
             document.getElementById('cto-cancel-btn').style.display = 'inline-block';
+
+            // Show day breakdown section for editing
+            document.getElementById('cto-day-breakdown-section').style.display = 'block';
 
             // Switch to Log tab
             document.getElementById('cto-log-tab').click();
@@ -4249,8 +4293,22 @@
                   ${ledger.remarks ? `<tr><th>Remarks</th><td>${ledger.remarks}</td></tr>` : ''}
                   <tr>
                     <th>Status</th>
-                    <td><span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${ledger.status}</span></td>
+                    <td><span class="badge ${ledger.status === 'Active' ? 'bg-success' : 'bg-danger'}">${ledger.status || 'Active'}</span></td>
                   </tr>
+                  ${ledger.status === 'Cancelled' ? `
+                    <tr>
+                      <th>Cancellation Reason</th>
+                      <td class="text-danger"><strong>${ledger.cancellationReason || 'N/A'}</strong></td>
+                    </tr>
+                    <tr>
+                      <th>Cancelled By</th>
+                      <td>${ledger.cancelledBy || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <th>Cancelled At</th>
+                      <td>${ledger.cancelledAt ? new Date(ledger.cancelledAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'}</td>
+                    </tr>
+                  ` : ''}
                 </tbody>
               </table>
             </div>
@@ -4327,15 +4385,15 @@
                   </tr>
                   <tr>
                     <th>Hours Earned</th>
-                    <td><strong class="text-success">${batch.totalHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-success">${(batch.totalHours || batch.earnedHours || batch.initialHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Hours Used</th>
-                    <td>${batch.usedHours ? batch.usedHours.toFixed(2) : '0.00'} hours</td>
+                    <td>${(batch.usedHours || 0).toFixed(2)} hours</td>
                   </tr>
                   <tr>
                     <th>Remaining Hours</th>
-                    <td><strong class="text-primary">${batch.remainingHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-primary">${(batch.remainingHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Certificate Date</th>
@@ -4461,15 +4519,15 @@
                   </tr>
                   <tr>
                     <th>Hours Carried Over</th>
-                    <td><strong class="text-info">${batch.totalHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-info">${(batch.totalHours || batch.earnedHours || batch.initialHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Hours Used</th>
-                    <td>${batch.usedHours ? batch.usedHours.toFixed(2) : '0.00'} hours</td>
+                    <td>${(batch.usedHours || 0).toFixed(2)} hours</td>
                   </tr>
                   <tr>
                     <th>Remaining Hours</th>
-                    <td><strong class="text-primary">${batch.remainingHours.toFixed(2)} hours</strong></td>
+                    <td><strong class="text-primary">${(batch.remainingHours || 0).toFixed(2)} hours</strong></td>
                   </tr>
                   <tr>
                     <th>Recorded On</th>
@@ -4561,22 +4619,31 @@
                     .cancelCto_SERVER(ledgerId, reason);
                 });
 
+                // Hide spinner
+                spinnerContainer.style.display = 'none';
+
                 if (result.success) {
                   // Use custom message if provided (includes forfeit info)
                   const message = result.message || `Successfully cancelled CTO and restored ${result.hoursRestored.toFixed(1)} hours.`;
                   Modal.success('CTO Cancelled', message);
                   loadCtoApplications();
+                  return true; // Close the modal
                 } else {
+                  // Re-enable buttons for retry
+                  reasonField.disabled = false;
+                  if (confirmBtn) confirmBtn.disabled = false;
+                  if (cancelBtn) cancelBtn.disabled = false;
                   Modal.error('Error', result.error);
+                  return false; // Keep modal open
                 }
               } catch (error) {
-                Modal.error('Error', 'Failed to cancel CTO: ' + error);
-              } finally {
                 // Hide spinner and re-enable buttons
                 spinnerContainer.style.display = 'none';
                 reasonField.disabled = false;
                 if (confirmBtn) confirmBtn.disabled = false;
                 if (cancelBtn) cancelBtn.disabled = false;
+                Modal.error('Error', 'Failed to cancel CTO: ' + error);
+                return false; // Keep modal open
               }
             }
           }
@@ -4854,12 +4921,14 @@
 
               const actions = status === 'Active'
                 ? `
-                  <button class="btn btn-sm btn-outline-primary" onclick="editCtoApplication('${app.ledgerId}', this)" title="Edit">
-                    <i class="bi bi-pencil"></i>
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger" onclick="cancelCtoApplication('${app.ledgerId}', '${app.employeeName}', ${Math.abs(app.hoursChange)})" title="Cancel">
-                    <i class="bi bi-x-circle"></i>
-                  </button>
+                  <div class="d-flex gap-1 flex-nowrap">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editCtoApplication('${app.ledgerId}', this)" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="cancelCtoApplication('${app.ledgerId}', '${app.employeeName}', ${Math.abs(app.hoursChange)})" title="Cancel">
+                      <i class="bi bi-x-circle"></i>
+                    </button>
+                  </div>
                 `
                 : '<span class="text-muted">-</span>';
 
