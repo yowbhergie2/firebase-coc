@@ -3814,6 +3814,7 @@
       const filingDateInput = document.getElementById('cto-filing-date');
       const errorDiv = document.getElementById('cto-filing-date-error');
       const filingDate = new Date(filingDateInput.value);
+      filingDate.setHours(0, 0, 0, 0);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -4813,6 +4814,9 @@
             filteredApps = filteredApps.filter(app => (app.status || 'Active') === statusFilter);
           }
 
+          // Sort by filing date descending (most recent first)
+          filteredApps.sort((a, b) => new Date(b.filingDate) - new Date(a.filingDate));
+
           if (filteredApps.length > 0) {
             tbody.innerHTML = filteredApps.map(app => {
               const filingDate = new Date(app.filingDate);
@@ -5656,6 +5660,13 @@
           // Load certificates with current filters (defaults to All Years)
           if (typeof loadCertificates === 'function') {
             loadCertificates();
+          }
+        } else if (page === 'log-cto') {
+          // Activate the "Log CTO Application" tab
+          const ctoLogTab = document.getElementById('cto-log-tab');
+          if (ctoLogTab) {
+            const tab = new bootstrap.Tab(ctoLogTab);
+            tab.show();
           }
         }
       });
