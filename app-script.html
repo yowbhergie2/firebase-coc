@@ -1755,6 +1755,46 @@
           // Determine if batch succeeded or failed
           const allFailed = result.successCount === 0;
 
+          // Build success details with PDF links
+          let successDetails = '';
+          if (result.successCount > 0) {
+            const successes = result.results.filter(r => r.success);
+
+            successDetails = `
+              <div class="mt-3">
+                <h5 class="text-success mb-2">Generated Certificates:</h5>
+                <div style="max-height: 400px; overflow-y: auto;">
+                  <table class="table table-sm table-bordered">
+                    <thead>
+                      <tr>
+                        <th style="width: 35%;">Employee</th>
+                        <th>Certificate</th>
+                        <th>Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${successes.map(success => `
+                        <tr>
+                          <td>${success.employeeName || success.employeeId}</td>
+                          <td>
+                            <a href="${success.pdfUrl}" target="_blank" class="btn btn-sm btn-primary">
+                              <i class="bi bi-file-pdf"></i> View
+                            </a>
+                          </td>
+                          <td>
+                            <a href="${success.summaryPdfUrl}" target="_blank" class="btn btn-sm btn-success">
+                              <i class="bi bi-file-pdf"></i> View
+                            </a>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+          }
+
           // Build error details if any failures occurred
           let errorDetails = '';
           if (result.failCount > 0) {
@@ -1811,6 +1851,7 @@
                   </tr>
                 </tbody>
               </table>
+              ${successDetails}
               ${errorDetails}
             </div>
           `;
@@ -3497,7 +3538,9 @@
 
       const data = {
         employeeId: document.getElementById('cto-employee').value,
-        ctoDate: document.getElementById('cto-date').value,
+        filingDate: document.getElementById('cto-filing-date').value,
+        dateFrom: document.getElementById('cto-date-from').value,
+        dateTo: document.getElementById('cto-date-to').value,
         hoursUsed: document.getElementById('cto-hours').value,
         remarks: document.getElementById('cto-remarks').value
       };
@@ -3520,16 +3563,25 @@
         });
 
         if (result.success) {
+          const filingDate = new Date(data.filingDate);
+          const formattedDate = filingDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
           const message = `
             <div class="text-center">
+              <h5 class="mb-3">Certification of Compensatory Overtime Credit (COC)</h5>
+              <p class="text-muted">as of: <strong>${formattedDate}</strong></p>
               <table class="table table-bordered mt-3 text-start mx-auto" style="max-width: 500px;">
                 <tbody>
                   <tr>
-                    <td style="width: 40%;"><strong>Hours Used</strong></td>
-                    <td><strong>${result.hoursUsed}</strong> hours</td>
+                    <td style="width: 50%;"><strong>No. of Hours of Earned:</strong></td>
+                    <td><strong>${result.totalEarned.toFixed(2)}</strong> hours</td>
                   </tr>
                   <tr>
-                    <td><strong>New Balance</strong></td>
+                    <td><strong>Less CTO Application:</strong></td>
+                    <td><strong class="text-danger">${result.hoursUsed.toFixed(2)}</strong> hours</td>
+                  </tr>
+                  <tr class="table-primary">
+                    <td><strong>Balance:</strong></td>
                     <td><strong class="text-primary">${result.newBalance.toFixed(2)}</strong> hours</td>
                   </tr>
                 </tbody>

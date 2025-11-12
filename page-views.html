@@ -595,12 +595,22 @@
           <form id="ctoForm">
             <div class="row">
               <div class="col-md-6 mb-3">
-                <label class="form-label">Employee</label>
+                <label class="form-label">Employee <span class="text-danger">*</span></label>
                 <select class="form-select" id="cto-employee" onchange="showCtoBalance()" required></select>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">CTO Date</label>
-                <input type="date" class="form-control" id="cto-date" required>
+                <label class="form-label">Date of Filing <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="cto-filing-date" required>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Inclusive Date From <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="cto-date-from" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Inclusive Date To <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="cto-date-to" required>
               </div>
             </div>
             <div class="mb-3">
@@ -609,7 +619,7 @@
               </div>
             </div>
             <div class="mb-3">
-              <label class="form-label">Hours to Use</label>
+              <label class="form-label">Number of Hours Applied for <span class="text-danger">*</span></label>
               <input type="number" class="form-control" id="cto-hours" step="0.5" min="0.5" required>
             </div>
             <div class="mb-3">

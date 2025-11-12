@@ -1019,7 +1019,10 @@ function generateBatchCertificates_SERVER(data) {
         employeeId: employeeId,
         success: result.success,
         error: result.error || null,
-        certificateId: result.certificateId || null
+        certificateId: result.certificateId || null,
+        employeeName: result.employeeName || null,
+        pdfUrl: result.pdfUrl || null,
+        summaryPdfUrl: result.summaryPdfUrl || null
       });
 
       if (result.success) {
@@ -1682,40 +1685,46 @@ function logCto_SERVER(data) {
     }
     
     const ctoId = 'CTO_' + Utilities.getUuid();
-    const ctoDate = new Date(data.ctoDate);
-    
+    const filingDate = new Date(data.filingDate);
+    const dateFrom = new Date(data.dateFrom);
+    const dateTo = new Date(data.dateTo);
+
     usedBatches.forEach(usage => {
       const newStatus = usage.newRemaining === 0 ? 'Depleted' : 'Active';
-      
+
       db.updateDocument('creditBatches/' + usage.batchId, {
         remainingHours: usage.newRemaining,
         status: newStatus,
-        lastUsedDate: ctoDate.toISOString(),
+        lastUsedDate: filingDate.toISOString(),
         lastUsedBy: Session.getActiveUser().getEmail()
       });
     });
-    
+
     const newBalance = availableBalance - hoursUsed;
-    
+
     const ledgerId = 'LEDGER_' + Utilities.getUuid();
     const ledgerData = {
       ledgerId: ledgerId,
       employeeId: data.employeeId,
-      transactionDate: ctoDate.toISOString(),
+      transactionDate: filingDate.toISOString(),
       transactionType: 'Used',
       referenceId: ctoId,
       hoursChange: -hoursUsed,
       balanceAfter: newBalance,
-      remarks: data.remarks || `CTO on ${ctoDate.toISOString().split('T')[0]}`,
+      filingDate: filingDate.toISOString(),
+      inclusiveDateFrom: dateFrom.toISOString(),
+      inclusiveDateTo: dateTo.toISOString(),
+      remarks: data.remarks || `CTO filed on ${filingDate.toISOString().split('T')[0]} for ${dateFrom.toISOString().split('T')[0]} to ${dateTo.toISOString().split('T')[0]}`,
       createdAt: new Date().toISOString()
     };
-    
+
     db.createDocument('ledger/' + ledgerId, ledgerData);
-    
+
     return {
       success: true,
       ctoId: ctoId,
       hoursUsed: hoursUsed,
+      totalEarned: availableBalance,
       newBalance: newBalance
     };
     
